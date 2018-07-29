@@ -9,7 +9,8 @@ namespace MAIAIBot.Core
         public Student(string id,
                        string name,
                        string group,
-                       string[] imgUrls) {
+                       string[] imgUrls)
+        {
             Id = id;
             Name = name;
             Group = group;
