@@ -19,7 +19,7 @@ namespace MAIAIBot.StudentsBot
                 .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
                 .AddJsonFile($"appsettings.{env.EnvironmentName}.json")
                 .AddEnvironmentVariables();
-            
+
             Configuration = builder.Build();
         }
 
@@ -31,7 +31,7 @@ namespace MAIAIBot.StudentsBot
 
             services.AddMvc();
 
-            services.AddBot<EchoBot>(options =>
+            services.AddBot<Bot>(options =>
             {
                 options.CredentialProvider = new ConfigurationCredentialProvider(Configuration);
 
@@ -43,7 +43,7 @@ namespace MAIAIBot.StudentsBot
 
                 IStorage dataStore = new MemoryStorage();
 
-                options.Middleware.Add(new ConversationState<EchoState>(dataStore));
+                options.Middleware.Add(new ConversationState<BotState>(dataStore));
             });
         }
 
