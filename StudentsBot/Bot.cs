@@ -77,6 +77,15 @@ namespace MAIAIBot.StudentsBot
             var dialogCtx = dialogs.CreateContext(context, state);
             switch (context.Activity.Type)
             {
+                case ActivityTypes.ConversationUpdate:
+                    var newUserName = context.Activity.MembersAdded[0]?.Name;
+                    if (!string.IsNullOrWhiteSpace(newUserName) && newUserName != "Bot")
+                    {
+                        await context.SendActivity("Привет! Я буду отмечать тебя на лекциях, "
+                            + "но сначала нужно зарегистрироваться и отправить мне фотки) "
+                            + "Напиши что-нибудь, чтобы начать регистрацию.");
+                    }
+                    break;
                 case ActivityTypes.Message:
                     await dialogCtx.Continue();
                     if (!context.Responded)
