@@ -54,6 +54,7 @@ namespace MAIAIBot.StudentsBot
         private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
         {
             var state = dialogContext.Context.GetConversationState<BotState>();
+            state.RegistrationComplete = true;
             state.Group = (result as TextResult).Value.Trim();
             await dialogContext.Context.SendActivity($"Name:\"{state.Name}\", group: {state.Group}");
             await dialogContext.End();
@@ -87,10 +88,17 @@ namespace MAIAIBot.StudentsBot
                     }
                     break;
                 case ActivityTypes.Message:
-                    await dialogCtx.Continue();
-                    if (!context.Responded)
+                    if (state.RegistrationComplete)
                     {
-                        await dialogCtx.Begin(PromptStep.GatherInfo);
+                        await context.SendActivity("Ты уже в списке)");
+                    }
+                    else
+                    {
+                        await dialogCtx.Continue();
+                        if (!context.Responded)
+                        {
+                            await dialogCtx.Begin(PromptStep.GatherInfo);
+                        }
                     }
                     break;
             }
