@@ -1,0 +1,15 @@
+{
+    "name": "TeachersBot",
+    "description": "",
+    "secretKey": "",
+    "services": [
+        {
+            "appId": "",
+            "id": "d6d447a0-97ae-11e8-9984-05d23846a864",
+            "type": "endpoint",
+            "appPassword": "",
+            "endpoint": "http://localhost:47456/api/messages",
+            "name": "http://localhost:47456/api/messages"
+        }
+    ]
+}
