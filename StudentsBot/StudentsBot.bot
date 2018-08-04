@@ -1,0 +1,15 @@
+{
+    "name": "StudentsBot",
+    "description": "",
+    "secretKey": "",
+    "services": [
+        {
+            "appId": "",
+            "id": "2f93ccd0-97aa-11e8-a14b-798e76dddd14",
+            "type": "endpoint",
+            "appPassword": "",
+            "endpoint": "http://localhost:23116/api/messages",
+            "name": "http://localhost:23116/api/messages"
+        }
+    ]
+}
