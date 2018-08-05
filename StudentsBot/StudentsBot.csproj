@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.1</TargetFramework>
+    <UserSecretsId>MAI-AI-Bot-Dev-b5628301-1d92-46a8-9adf-323008bdfbc5</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +16,14 @@
     <PackageReference Include="Microsoft.Bot.Builder.Core.Extensions" Version="4.0.1-preview" />
     <PackageReference Include="Microsoft.Bot.Builder.Dialogs" Version="4.0.1-preview" />
     <PackageReference Include="Microsoft.Bot.Builder.Integration.AspNet.Core" Version="4.0.1-preview" />
+  </ItemGroup>
+
+  <ItemGroup>
+      <DotNetCliToolReference Include="Microsoft.Extensions.SecretManager.Tools" Version="2.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Core.csproj" />
   </ItemGroup>
 
 </Project>

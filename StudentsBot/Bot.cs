@@ -8,6 +8,8 @@ using Microsoft.Bot.Schema;
 using Microsoft.Recognizers.Text;
 using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
 
+using MAIAIBot.Core;
+
 namespace MAIAIBot.StudentsBot
 {
     public static class PromptStep
@@ -76,6 +78,8 @@ namespace MAIAIBot.StudentsBot
         {
             var state = context.GetConversationState<BotState>();
             var dialogCtx = dialogs.CreateContext(context, state);
+            var databaseProvider = context.Services.Get<IDatabaseProvider>("dbservice");
+
             switch (context.Activity.Type)
             {
                 case ActivityTypes.ConversationUpdate:
