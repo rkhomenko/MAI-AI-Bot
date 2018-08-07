@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 namespace MAIAIBot.Core {
     public interface IDatabaseProvider
     {
+        Task Init();
+
         IQueryable<Student> GetAllStudents();
 
         Task AddStudent(Student student);

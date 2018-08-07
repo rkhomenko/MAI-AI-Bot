@@ -9,15 +9,18 @@ using Microsoft.Azure.Documents.Linq;
 
 namespace MAIAIBot.Core
 {
-    public class CosmosDBProvider : IDatabaseProvider 
+    public class CosmosDBProvider : IDatabaseProvider
     {
         private const string DB_NAME = "students";
         private const string COLLECTION_NAME = "students_collection";
         private DocumentClient Client;
 
-        public async Task Init(string connectionStr, string key)
-        {
+        public CosmosDBProvider(string connectionStr, string key) {
             Client = new DocumentClient(new Uri(connectionStr), key);
+        }
+
+        public async Task Init()
+        {
             await Client.CreateDatabaseIfNotExistsAsync(new Database { Id = DB_NAME });
             await Client.CreateDocumentCollectionIfNotExistsAsync(
                 UriFactory.CreateDatabaseUri(DB_NAME),

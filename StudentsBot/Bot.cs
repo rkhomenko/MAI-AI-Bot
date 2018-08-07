@@ -22,6 +22,7 @@ namespace MAIAIBot.StudentsBot
     public class Bot : IBot
     {
         private readonly DialogSet dialogs;
+        private readonly IDatabaseProvider DatabaseProvider = null;
 
         private async Task NonEmptyStringValidator(ITurnContext context, TextResult result, string message)
         {
@@ -62,9 +63,11 @@ namespace MAIAIBot.StudentsBot
             await dialogContext.End();
         }
 
-        public Bot()
+        public Bot(IDatabaseProvider databaseProvider)
         {
             dialogs = new DialogSet();
+
+            DatabaseProvider = databaseProvider;
 
             dialogs.Add(PromptStep.NamePrompt,
                 new PromptsDialog.TextPrompt(NameValidator));
@@ -78,7 +81,9 @@ namespace MAIAIBot.StudentsBot
         {
             var state = context.GetConversationState<BotState>();
             var dialogCtx = dialogs.CreateContext(context, state);
-            var databaseProvider = context.Services.Get<IDatabaseProvider>("dbservice");
+
+
+            await DatabaseProvider.Init();
 
             switch (context.Activity.Type)
             {

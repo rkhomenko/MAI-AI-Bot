@@ -14,20 +14,6 @@ using MAIAIBot.Core;
 
 namespace MAIAIBot.StudentsBot
 {
-    public class DatabaseConfigurator : IMiddleware
-    {
-        private readonly IDatabaseProvider DatabaseProvider;
-
-        public DatabaseConfigurator(IDatabaseProvider databaseProvider) {
-            DatabaseProvider = databaseProvider;
-        }
-
-        public Task OnTurn(ITurnContext context, MiddlewareSet.NextDelegate next) {
-            context.Services.Add("dbservice", DatabaseProvider);
-            return next();
-        }
-    }
-
     public class Startup
     {
         private const string CosmosDbConnectionStrIndex = "CosmosDb";
@@ -52,6 +38,11 @@ namespace MAIAIBot.StudentsBot
             services.Configure<ApplicationConfiguration>(Configuration);
 
             services.AddMvc();
+            services.AddTransient<IDatabaseProvider>(serviceProvider => {
+                var connectionString = Configuration.GetConnectionString(CosmosDbConnectionStrIndex);
+                var key = Configuration[CosmosDbKeyIndex];
+                return new CosmosDBProvider(connectionString, key);
+            });
 
             services.AddBot<Bot>(options =>
             {
@@ -66,12 +57,6 @@ namespace MAIAIBot.StudentsBot
                 IStorage dataStore = new MemoryStorage();
 
                 options.Middleware.Add(new ConversationState<BotState>(dataStore));
-
-                var databaseProvider = new CosmosDBProvider();
-                var connectionString = Configuration.GetConnectionString(CosmosDbConnectionStrIndex);
-                var key = Configuration[CosmosDbKeyIndex];
-                databaseProvider.Init(connectionString, key).Wait();
-                options.Middleware.Add(new DatabaseConfigurator(databaseProvider));
             });
         }
 
