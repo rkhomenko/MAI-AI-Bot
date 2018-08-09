@@ -18,8 +18,6 @@ namespace MAIAIBot.StudentsBot
     {
         private const string CosmosDbConnectionStrIndex = "CosmosDb";
         private const string CosmosDbKeyIndex = "CosmosDb:Key";
-        private const string AzureStorageAccountNameIndex = "AzureStorage:AccountName";
-        private const string AzureStorageAccountKeyIndex = "AzureStorage:AccountKey";
         private const string AzureStorageSasTokenIndex = "AzureStorage:SasToken";
         private const string AzureStorageConnectionStringIndex = "AzureStorage:ConnectionString";
         private const string AzureStorageShareName = "mai-ai-bot-photo";
