@@ -18,6 +18,12 @@ namespace MAIAIBot.StudentsBot
     {
         private const string CosmosDbConnectionStrIndex = "CosmosDb";
         private const string CosmosDbKeyIndex = "CosmosDb:Key";
+        private const string AzureStorageAccountNameIndex = "AzureStorage:AccountName";
+        private const string AzureStorageAccountKeyIndex = "AzureStorage:AccountKey";
+        private const string AzureStorageSasTokenIndex = "AzureStorage:SasToken";
+        private const string AzureStorageConnectionStringIndex = "AzureStorage:ConnectionString";
+        private const string AzureStorageShareName = "mai-ai-bot-photo";
+        private const string AzureStorageImagePrefix = "maiaibotphoto-";
 
         public Startup(IHostingEnvironment env)
         {
@@ -38,10 +44,21 @@ namespace MAIAIBot.StudentsBot
             services.Configure<ApplicationConfiguration>(Configuration);
 
             services.AddMvc();
+
             services.AddTransient<IDatabaseProvider>(serviceProvider => {
                 var connectionString = Configuration.GetConnectionString(CosmosDbConnectionStrIndex);
                 var key = Configuration[CosmosDbKeyIndex];
                 return new CosmosDBProvider(connectionString, key);
+            });
+
+            services.AddTransient<IStorageProvider>(serviceProvider => {
+                var sasToken = Configuration[AzureStorageSasTokenIndex];
+                var connectionString = Configuration[AzureStorageConnectionStringIndex];
+
+                return new AzureStorageProvider(AzureStorageShareName,
+                    AzureStorageImagePrefix,
+                    sasToken,
+                    connectionString);
             });
 
             services.AddBot<Bot>(options =>

@@ -1,5 +1,7 @@
-using System.Threading.Tasks;
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
@@ -23,8 +25,12 @@ namespace MAIAIBot.StudentsBot
 
     public class Bot : IBot
     {
+        private const int MinPhoto = 3;
+        private const int MaxPhoto = 6;
+
         private readonly DialogSet dialogs;
         private readonly IDatabaseProvider DatabaseProvider = null;
+        private readonly IStorageProvider StorageProvider = null;
 
         private async Task NonEmptyStringValidator(ITurnContext context, TextResult result, string message)
         {
@@ -59,16 +65,23 @@ namespace MAIAIBot.StudentsBot
         private async Task AskPhotoStep(DialogContext dialogContext, object result, SkipStepFunction next) {
             var state = dialogContext.Context.GetConversationState<BotState>();
             state.Group = (result as TextResult).Value.Trim();
-            await dialogContext.Context.SendActivity("Прикрепи от 2 до 6 фотографий, на которых только ты.");
+            await dialogContext.Context.SendActivity($"Прикрепи от {MinPhoto} до {MaxPhoto} фотографий, на которых только ты.");
         }
 
         private async Task<IEnumerable<string>> UploadPhotos(DialogContext dialogContext, IEnumerable<Attachment> attachments) {
-            var result = new List<string>();
+            Func<string, Stream> urlToStream = url => {
+                byte[] imageData = null;
+                using (var wc = new System.Net.WebClient())
+                    imageData = wc.DownloadData(url);
+                return new MemoryStream(imageData);
+            };
 
+
+            var result = new List<string>();
             foreach (var attachment in attachments) {
-                string url = attachment.ContentUrl;
-                result.Add(url);
-                await dialogContext.Context.SendActivity($"Upload {url}");
+                var url = await StorageProvider.Load(urlToStream(attachment.ContentUrl),
+                    attachment.Name);
+                result.Add(url.ToString());
             }
 
             return result;
@@ -77,18 +90,19 @@ namespace MAIAIBot.StudentsBot
         private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
         {
             var state = dialogContext.Context.GetConversationState<BotState>();
+            var attachments = dialogContext.Context.Activity.Attachments;
 
-            var attachments = await UploadPhotos(dialogContext, dialogContext.Context.Activity.Attachments);
+            var imgUrls = await UploadPhotos(dialogContext, dialogContext.Context.Activity.Attachments);
 
             state.RegistrationComplete = true;
-            await dialogContext.Context.SendActivity($"Name:\"{state.Name}\", group: {state.Group}");
             await dialogContext.Context.SendActivity("Отлично! Ты в списке)");
             await dialogContext.End();
         }
 
-        public Bot(IDatabaseProvider databaseProvider)
+        public Bot(IDatabaseProvider databaseProvider, IStorageProvider storageProvider)
         {
             DatabaseProvider = databaseProvider;
+            StorageProvider = storageProvider;
             dialogs = new DialogSet();
 
             dialogs.Add(PromptStep.NamePrompt,
