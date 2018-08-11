@@ -7,13 +7,12 @@ namespace MAIAIBot.Core
 {
     public class Student
     {
-        public Student(string id,
-                       string name,
+        public Student(string name,
                        string group,
                        string[] imgUrls,
                        object connection)
         {
-            Id = id;
+            Id = Guid.NewGuid().ToString();
             Name = name;
             Group = group;
             ImgUrls.AddRange(imgUrls);
