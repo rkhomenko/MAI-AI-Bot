@@ -68,7 +68,7 @@ namespace MAIAIBot.StudentsBot
             await dialogContext.Context.SendActivity($"Прикрепи от {MinPhoto} до {MaxPhoto} фотографий, на которых только ты.");
         }
 
-        private async Task<IEnumerable<string>> UploadPhotos(DialogContext dialogContext, IEnumerable<Attachment> attachments) {
+        private async Task<List<string>> UploadPhotos(DialogContext dialogContext, IEnumerable<Attachment> attachments) {
             Func<string, Stream> urlToStream = url => {
                 byte[] imageData = null;
                 using (var wc = new System.Net.WebClient())
@@ -87,14 +87,35 @@ namespace MAIAIBot.StudentsBot
             return result;
         }
 
-        private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        private async Task GatherStudentInfo(DialogContext dialogContext)
         {
-            var state = dialogContext.Context.GetConversationState<BotState>();
-            var attachments = dialogContext.Context.Activity.Attachments;
+            var context = dialogContext.Context;
+            var state = context.GetConversationState<BotState>();
+            var attachments = context.Activity.Attachments;
+            var imgUrls = await UploadPhotos(dialogContext, attachments);
 
-            var imgUrls = await UploadPhotos(dialogContext, dialogContext.Context.Activity.Attachments);
+            var studentChannelInfo = new StudentChannelInfo();
+            studentChannelInfo.ToId = context.Activity.From.Id;
+            studentChannelInfo.ToName = context.Activity.From.Name;
+            studentChannelInfo.FromId = context.Activity.Recipient.Id;
+            studentChannelInfo.FromName = context.Activity.Recipient.Name;
+            studentChannelInfo.ServiceUrl = context.Activity.ServiceUrl;
+            studentChannelInfo.ChannelId = context.Activity.ChannelId;
+            studentChannelInfo.ConversationId = context.Activity.Conversation.Id;
+
+            var student = new Student(state.Name,
+                                      state.Group,
+                                      imgUrls,
+                                      studentChannelInfo);
+
+            await DatabaseProvider.AddStudent(student);
 
             state.RegistrationComplete = true;
+        }
+
+        private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
+            await GatherStudentInfo(dialogContext);
             await dialogContext.Context.SendActivity("Отлично! Ты в списке)");
             await dialogContext.End();
         }
