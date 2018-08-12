@@ -9,7 +9,7 @@ namespace MAIAIBot.Core
         Uri GetCorrectUri(Uri uriFromDatabase);
 
         Task<Uri> Load(Stream stream, string name);
-        
+
         Task Remove(Uri uri);
     }
 }

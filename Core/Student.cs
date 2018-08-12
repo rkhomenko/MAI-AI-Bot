@@ -55,5 +55,15 @@ namespace MAIAIBot.Core
 
         public override string ToString()
             => JsonConvert.SerializeObject(this);
+
+        public void AddVisit(DateTime dateTime)
+        {
+            Visits.Add(dateTime);
+        }
+
+        public void AddVariant(int variant)
+        {
+            Variants.Add(variant);
+        }
     }
 }
