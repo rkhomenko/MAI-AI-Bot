@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
@@ -31,6 +33,7 @@ namespace MAIAIBot.StudentsBot
         private readonly DialogSet dialogs;
         private readonly IDatabaseProvider DatabaseProvider = null;
         private readonly IStorageProvider StorageProvider = null;
+        private readonly ICognitiveServiceProvider CognitiveServiceProvider = null;
 
         private async Task NonEmptyStringValidator(ITurnContext context, TextResult result, string message)
         {
@@ -110,6 +113,11 @@ namespace MAIAIBot.StudentsBot
 
             await DatabaseProvider.AddStudent(student);
 
+            var imgUrlsSas = from imgUrl in imgUrls
+                             select StorageProvider.GetCorrectUri(new Uri(imgUrl)).ToString();
+            await CognitiveServiceProvider.AddPerson(student.Id, imgUrlsSas);
+            await CognitiveServiceProvider.TrainGroup();
+
             state.RegistrationComplete = true;
         }
 
@@ -120,10 +128,13 @@ namespace MAIAIBot.StudentsBot
             await dialogContext.End();
         }
 
-        public Bot(IDatabaseProvider databaseProvider, IStorageProvider storageProvider)
+        public Bot(IDatabaseProvider databaseProvider,
+                   IStorageProvider storageProvider,
+                   ICognitiveServiceProvider cognitiveServiceProvider)
         {
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
+            CognitiveServiceProvider = cognitiveServiceProvider;
             dialogs = new DialogSet();
 
             dialogs.Add(PromptStep.NamePrompt,
