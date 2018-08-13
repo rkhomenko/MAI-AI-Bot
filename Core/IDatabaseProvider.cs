@@ -14,6 +14,8 @@ namespace MAIAIBot.Core {
 
         Task AddStudents(IEnumerable students);
 
+        Task<Student> GetStudent(string id);
+
         Task UpdateStudent(Student student);
 
         Task UpdateStudents(IEnumerable students);

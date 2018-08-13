@@ -34,8 +34,8 @@ namespace MAIAIBot.Core
             Group = group;
             ImgUrls = imgUrls;
             ChannelInfo = channelInfo;
-            Visits = null;
-            Variants = null;
+            Visits = new List<DateTime>();
+            Variants = new List<int>();
         }
 
         [JsonProperty(PropertyName = "id")]
@@ -58,11 +58,17 @@ namespace MAIAIBot.Core
 
         public void AddVisit(DateTime dateTime)
         {
+            if (Visits == null) {
+                Visits = new List<DateTime>();
+            }
             Visits.Add(dateTime);
         }
 
         public void AddVariant(int variant)
         {
+            if (Variants == null) {
+                Variants = new List<int>();
+            }
             Variants.Add(variant);
         }
     }

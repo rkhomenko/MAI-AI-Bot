@@ -11,8 +11,8 @@ namespace MAIAIBot.Core
 {
     public class CosmosDBProvider : IDatabaseProvider
     {
-        private const string DB_NAME = "students";
-        private const string COLLECTION_NAME = "students_collection";
+        private const string DatabaseName = "students";
+        private const string CollectionName = "students_collection";
         private DocumentClient Client;
 
         public CosmosDBProvider(string connectionStr, string key) {
@@ -21,10 +21,10 @@ namespace MAIAIBot.Core
 
         public async Task Init()
         {
-            await Client.CreateDatabaseIfNotExistsAsync(new Database { Id = DB_NAME });
+            await Client.CreateDatabaseIfNotExistsAsync(new Database { Id = DatabaseName });
             await Client.CreateDocumentCollectionIfNotExistsAsync(
-                UriFactory.CreateDatabaseUri(DB_NAME),
-                new DocumentCollection { Id = COLLECTION_NAME }
+                UriFactory.CreateDatabaseUri(DatabaseName),
+                new DocumentCollection { Id = CollectionName }
             );
         }
 
@@ -33,7 +33,7 @@ namespace MAIAIBot.Core
             var queryOptions = new FeedOptions { MaxItemCount = -1 };
             return Client.CreateDocumentQuery<Student>(
                 UriFactory.CreateDocumentCollectionUri(
-                    DB_NAME, COLLECTION_NAME),
+                    DatabaseName, CollectionName),
                 queryOptions
             );
         }
@@ -42,7 +42,7 @@ namespace MAIAIBot.Core
         {
             await Client.CreateDocumentAsync(
                 UriFactory.CreateDocumentCollectionUri(
-                    DB_NAME, COLLECTION_NAME),
+                    DatabaseName, CollectionName),
                 student
             );
         }
@@ -54,11 +54,19 @@ namespace MAIAIBot.Core
             }
         }
 
+        public async Task<Student> GetStudent(string id)
+        {
+            var response = await Client.ReadDocumentAsync(UriFactory.CreateDocumentUri(
+                DatabaseName, CollectionName, id));
+
+            return (Student)(dynamic)response.Resource;
+        }
+
         public async Task UpdateStudent(Student student)
         {
             await Client.ReplaceDocumentAsync(
                 UriFactory.CreateDocumentUri(
-                    DB_NAME, COLLECTION_NAME, student.Id),
+                    DatabaseName, CollectionName, student.Id),
                 student
             );
         }
@@ -75,7 +83,7 @@ namespace MAIAIBot.Core
         {
             await Client.DeleteDocumentAsync(
                 UriFactory.CreateDocumentUri(
-                    DB_NAME, COLLECTION_NAME, student.Id)
+                    DatabaseName, CollectionName, student.Id)
             );
         }
 

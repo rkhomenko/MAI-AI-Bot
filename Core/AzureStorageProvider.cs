@@ -15,7 +15,7 @@ namespace MAIAIBot.Core
         private string Prefix;
         private string SasToken;
         private CloudFileShare FileShare;
-        
+
         public AzureStorageProvider(string shareName,
                                     string prefix,
                                     string sasToken,
@@ -34,6 +34,17 @@ namespace MAIAIBot.Core
         {
             return new Uri(uri + SasToken);
         }
+
+        public async Task<Stream> GetStream(Uri url)
+        {
+            byte[] data = null;
+            using (var wc = new System.Net.WebClient())
+            {
+                data = await wc.DownloadDataTaskAsync(url);
+            }
+            return (new MemoryStream(data)) as Stream;
+        }
+
         public async Task<Uri> Load(Stream stream, string name)
         {
             var rootDir = FileShare.GetRootDirectoryReference();
@@ -43,9 +54,9 @@ namespace MAIAIBot.Core
                 "-" +
                 name
             );
-            
+
             await cloudFile.UploadFromStreamAsync(stream);
-            
+
             return await Task.FromResult(cloudFile.Uri);
         }
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -67,20 +68,23 @@ namespace MAIAIBot.Core
             var result = new List<IdentifyResults>();
 
             var faces = await ServiceClient.DetectAsync(imgUrl);
-            var facesId = faces.Select(face => face.FaceId);
+            var facesId = faces.Select(face => face.FaceId).ToArray();
 
-            int facesCount = faces.Count() / FacesPerOnce;
-            facesCount += (faces.Count() % FacesPerOnce == 0) ? 0 : 1;
+            int iterCount = faces.Count() / FacesPerOnce;
+            iterCount += (faces.Count() % FacesPerOnce == 0) ? 0 : 1;
 
             var identifyResults = new List<IdentifyResult>();
-            for (int i = 0; i < facesCount; i++) {
-                var residue = facesCount - i * FacesPerOnce;
+            var buffer = new Guid[FacesPerOnce];
+            var residue = faces.Count();
+            for (int i = 0; i < iterCount; i++) {
                 var count = (residue < FacesPerOnce) ? residue : FacesPerOnce;
-                var identifyResultsArr = await ServiceClient.IdentifyAsync(GroupId,
-                    facesId.Take(count).ToArray());
+                Array.Copy(facesId, i * FacesPerOnce, buffer, 0, count);
+
+                var identifyResultsArr = await ServiceClient.IdentifyAsync(GroupId, buffer.Take(count).ToArray());
 
                 identifyResults.AddRange(identifyResultsArr);
 
+                residue -= FacesPerOnce;
                 Thread.Sleep(Timeout);
             }
 
