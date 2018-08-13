@@ -16,15 +16,6 @@ namespace MAIAIBot.StudentsBot
 {
     public class Startup
     {
-        private const string CosmosDbConnectionStrIndex = "CosmosDb";
-        private const string CosmosDbKeyIndex = "CosmosDb:Key";
-        private const string AzureStorageSasTokenIndex = "AzureStorage:SasToken";
-        private const string AzureStorageConnectionStringIndex = "AzureStorage:ConnectionString";
-        private const string AzureStorageShareName = "mai-ai-bot-photo";
-        private const string AzureStorageImagePrefix = "maiaibotphoto-";
-        private const string CognitiveServiceConnectionStrIndex = "CognitiveService";
-        private const string CognitiveServiceKeyIndex = "CognitiveService:Key";
-
         public Startup(IHostingEnvironment env)
         {
             var builder = new ConfigurationBuilder()
@@ -46,17 +37,17 @@ namespace MAIAIBot.StudentsBot
             services.AddMvc();
 
             services.AddTransient<IDatabaseProvider>(serviceProvider => {
-                var connectionString = Configuration.GetConnectionString(CosmosDbConnectionStrIndex);
-                var key = Configuration[CosmosDbKeyIndex];
+                var connectionString = Configuration.GetConnectionString(Constants.CosmosDbConnectionStrIndex);
+                var key = Configuration[Constants.CosmosDbKeyIndex];
                 return new CosmosDBProvider(connectionString, key);
             });
 
             services.AddTransient<IStorageProvider>(serviceProvider => {
-                var sasToken = Configuration[AzureStorageSasTokenIndex];
-                var connectionString = Configuration[AzureStorageConnectionStringIndex];
+                var sasToken = Configuration[Constants.AzureStorageSasTokenIndex];
+                var connectionString = Configuration[Constants.AzureStorageConnectionStrIndex];
 
-                return new AzureStorageProvider(AzureStorageShareName,
-                    AzureStorageImagePrefix,
+                return new AzureStorageProvider(Constants.AzureStorageShareName,
+                    Constants.AzureStorageImagePrefix,
                     sasToken,
                     connectionString);
             });
@@ -64,8 +55,8 @@ namespace MAIAIBot.StudentsBot
             // fixme: Only for debug usecases. Delete it in production. ->
             var cognitiveService = new AzureCognitiveServiceProvider(Constants.CognitiveServiceGroupId,
                 Constants.CognitiveServiceGroupName,
-                Configuration[CognitiveServiceKeyIndex],
-                Configuration.GetConnectionString(CognitiveServiceConnectionStrIndex));
+                Configuration[Constants.CognitiveServiceKeyIndex],
+                Configuration.GetConnectionString(Constants.CognitiveServiceConnectionStrIndex));
 
             try
             {
@@ -78,8 +69,8 @@ namespace MAIAIBot.StudentsBot
             // <-
 
             services.AddTransient<ICognitiveServiceProvider>(serviceProvider => {
-                var endpoint = Configuration.GetConnectionString(CognitiveServiceConnectionStrIndex);
-                var key = Configuration[CognitiveServiceKeyIndex];
+                var endpoint = Configuration.GetConnectionString(Constants.CognitiveServiceConnectionStrIndex);
+                var key = Configuration[Constants.CognitiveServiceKeyIndex];
 
                 return new AzureCognitiveServiceProvider(Constants.CognitiveServiceGroupId,
                     Constants.CognitiveServiceGroupName,
