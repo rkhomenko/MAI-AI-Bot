@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Timers;
+
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
@@ -8,36 +11,40 @@ using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
 using Microsoft.Bot.Schema;
 
+using MAIAIBot.Core;
+
 namespace MAIAIBot.TeachersBot
 {
     public class Bot : IBot
     {
-        private async Task SetTimer(ITurnContext context) {
-            var timer = new Timer(5000);
-            timer.Elapsed += async (source, e) => await SendProactiveMessage(context);
-            timer.AutoReset = false;
-            timer.Enabled = true;
+        private const int Timeout = 1000;
 
-            await Task.CompletedTask;
+        private readonly IDatabaseProvider DatabaseProvider;
+        private readonly IStorageProvider StorageProvider;
+        private readonly ICognitiveServiceProvider CognitiveServiceProvider;
+
+        public Bot(IDatabaseProvider databaseProvider,
+                   IStorageProvider storageProvider,
+                   ICognitiveServiceProvider cognitiveServiceProvider)
+        {
+            DatabaseProvider = databaseProvider;
+            StorageProvider = storageProvider;
+            CognitiveServiceProvider = cognitiveServiceProvider;
         }
 
-        private async Task SendProactiveMessage(ITurnContext context) {
-            var toId = context.Activity.From.Id;
-            var toName = context.Activity.From.Name;
-            var fromId = context.Activity.Recipient.Id;
-            var fromName = context.Activity.Recipient.Name;
-            var serviceUrl = context.Activity.ServiceUrl;
-            var channelId = context.Activity.ChannelId;
-            var conversationId = context.Activity.Conversation.Id;
+        private async Task NotifyStudent(ITurnContext context, Student student)
+        {
+            var channelInfo = student.ChannelInfo;
+            var userAccount = new ChannelAccount(channelInfo.ToId, channelInfo.ToName);
+            var botAccount = new ChannelAccount(channelInfo.FromId, channelInfo.FromName);
+            var connector =  new ConnectorClient(new Uri(channelInfo.ServiceUrl));
+            var conversationId = channelInfo.ConversationId;
 
-            var userAccount = new ChannelAccount(toId, toName);
-            var botAccount = new ChannelAccount(fromId, fromName);
-            var connector = new ConnectorClient(new Uri(serviceUrl));
+            var message = Activity.CreateMessageActivity();
+            if (!string.IsNullOrEmpty(channelInfo.ConversationId) &&
+                !string.IsNullOrEmpty(channelInfo.ConversationId)) {
 
-
-            IMessageActivity message = Activity.CreateMessageActivity();
-            if (!string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(channelId)) {
-                message.ChannelId = channelId;
+                message.ChannelId = channelInfo.ConversationId;
             }
             else
             {
@@ -48,10 +55,49 @@ namespace MAIAIBot.TeachersBot
             message.From = botAccount;
             message.Recipient = userAccount;
             message.Conversation = new ConversationAccount(id: conversationId);
-            message.Text = "Proactive message recived!";
-            message.Locale = "en-us";
+            message.Text = $"Ты был на лекции {student.Visits[student.Visits.Count - 1]}";
+            message.Locale = "ru-ru";
 
             await connector.Conversations.SendToConversationAsync(message as Activity);
+
+        }
+
+        private async Task CheckPhotos(ITurnContext context)
+        {
+            var students = new List<Student>();
+            var attachments = context.Activity.Attachments;
+
+            if (attachments == null) {
+                await context.SendActivity("Прикрептие хотя бы одну фотографию!");
+                return;
+            }
+
+            foreach (var attachment in attachments)
+            {
+                var url = await StorageProvider.Load(await StorageProvider.GetStream(
+                        new Uri(attachment.ContentUrl)),
+                    attachment.Name);
+
+                var results = await CognitiveServiceProvider.Identify(StorageProvider.GetCorrectUri(url).ToString());
+
+                foreach (var result in results)
+                {
+                    var student = await DatabaseProvider.GetStudent(result.CandidateIds[0]);
+
+                    student.AddVisit(DateTime.Now);
+                    await DatabaseProvider.UpdateStudent(student);
+
+                    await context.SendActivity($"{student.Name} {student.Group}");
+                    await NotifyStudent(context, student);
+
+                    if (result.CandidateIds.Count > 1)
+                    {
+                        await context.SendActivity("WARNING: для этого студента есть несколько кандидатов!");
+                    }
+
+                    Thread.Sleep(Timeout);
+                }
+            }
         }
 
         public async Task OnTurn(ITurnContext context)
@@ -59,8 +105,7 @@ namespace MAIAIBot.TeachersBot
             switch (context.Activity.Type)
             {
                 case ActivityTypes.Message:
-                    await SetTimer(context);
-                    await context.SendActivity("Time for proactive message send to 5 seconds.");
+                    await CheckPhotos(context);
                     break;
             }
         }
