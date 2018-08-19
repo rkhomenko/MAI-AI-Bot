@@ -97,14 +97,16 @@ namespace MAIAIBot.StudentsBot
             var attachments = context.Activity.Attachments;
             var imgUrls = await UploadPhotos(dialogContext, attachments);
 
-            var studentChannelInfo = new StudentChannelInfo();
-            studentChannelInfo.ToId = context.Activity.From.Id;
-            studentChannelInfo.ToName = context.Activity.From.Name;
-            studentChannelInfo.FromId = context.Activity.Recipient.Id;
-            studentChannelInfo.FromName = context.Activity.Recipient.Name;
-            studentChannelInfo.ServiceUrl = context.Activity.ServiceUrl;
-            studentChannelInfo.ChannelId = context.Activity.ChannelId;
-            studentChannelInfo.ConversationId = context.Activity.Conversation.Id;
+            var studentChannelInfo = new StudentChannelInfo
+            {
+                ToId = context.Activity.From.Id,
+                ToName = context.Activity.From.Name,
+                FromId = context.Activity.Recipient.Id,
+                FromName = context.Activity.Recipient.Name,
+                ServiceUrl = context.Activity.ServiceUrl,
+                ChannelId = context.Activity.ChannelId,
+                ConversationId = context.Activity.Conversation.Id
+            };
 
             var student = new Student(state.Name,
                                       state.Group,
