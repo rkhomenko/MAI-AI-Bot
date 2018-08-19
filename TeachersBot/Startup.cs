@@ -5,6 +5,7 @@ using Microsoft.Bot.Builder.BotFramework;
 using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Bot.Builder.TraceExtensions;
+using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,13 +35,15 @@ namespace MAIAIBot.TeachersBot
 
             services.AddMvc();
 
-            services.AddTransient<IDatabaseProvider>(serviceProvider => {
+            services.AddTransient<IDatabaseProvider>(serviceProvider =>
+            {
                 var connectionString = Configuration.GetConnectionString(Constants.CosmosDbConnectionStrIndex);
                 var key = Configuration[Constants.CosmosDbKeyIndex];
                 return new CosmosDBProvider(connectionString, key);
             });
 
-            services.AddTransient<IStorageProvider>(serviceProvider => {
+            services.AddTransient<IStorageProvider>(serviceProvider =>
+            {
                 var sasToken = Configuration[Constants.AzureStorageSasTokenIndex];
                 var connectionString = Configuration[Constants.AzureStorageConnectionStrIndex];
 
@@ -50,7 +53,8 @@ namespace MAIAIBot.TeachersBot
                     connectionString);
             });
 
-            services.AddTransient<ICognitiveServiceProvider>(serviceProvider => {
+            services.AddTransient<ICognitiveServiceProvider>(serviceProvider =>
+            {
                 var endpoint = Configuration.GetConnectionString(Constants.CognitiveServiceConnectionStrIndex);
                 var key = Configuration[Constants.CognitiveServiceKeyIndex];
 
@@ -60,6 +64,9 @@ namespace MAIAIBot.TeachersBot
                     endpoint);
             });
 
+            services.AddSingleton(new MicrosoftAppCredentials(Configuration[MicrosoftAppCredentials.MicrosoftAppIdKey],
+                Configuration[MicrosoftAppCredentials.MicrosoftAppPasswordKey]));
+
             services.AddBot<Bot>(options =>
             {
                 options.CredentialProvider = new ConfigurationCredentialProvider(Configuration);
@@ -67,7 +74,7 @@ namespace MAIAIBot.TeachersBot
                 options.Middleware.Add(new CatchExceptionMiddleware<Exception>(async (context, exception) =>
                 {
                     await context.TraceActivity("Exception", exception);
-                    await context.SendActivity("Sorry, it looks like something went wrong!");
+                    await context.SendActivity($"{exception}");
                 }));
 
                 IStorage dataStore = new MemoryStorage();

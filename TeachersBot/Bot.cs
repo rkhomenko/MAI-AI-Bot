@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Connector;
+using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
 
 using MAIAIBot.Core;
@@ -19,14 +19,17 @@ namespace MAIAIBot.TeachersBot
     {
         private const int Timeout = 1000;
 
+        private readonly MicrosoftAppCredentials AppCredentials;
         private readonly IDatabaseProvider DatabaseProvider;
         private readonly IStorageProvider StorageProvider;
         private readonly ICognitiveServiceProvider CognitiveServiceProvider;
 
-        public Bot(IDatabaseProvider databaseProvider,
+        public Bot(MicrosoftAppCredentials appCredentials,
+                   IDatabaseProvider databaseProvider,
                    IStorageProvider storageProvider,
                    ICognitiveServiceProvider cognitiveServiceProvider)
         {
+            AppCredentials = appCredentials;
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
             CognitiveServiceProvider = cognitiveServiceProvider;
@@ -36,13 +39,17 @@ namespace MAIAIBot.TeachersBot
         {
             var channelInfo = student.ChannelInfo;
             var userAccount = new ChannelAccount(channelInfo.ToId, channelInfo.ToName);
-            var botAccount = new ChannelAccount(channelInfo.FromId, channelInfo.FromName);
-            var connector =  new ConnectorClient(new Uri(channelInfo.ServiceUrl));
+            var botAccount = new ChannelAccount(context.Activity.From.Id, context.Activity.From.Name);
+            var serviceUrl = context.Activity.ServiceUrl;
             var conversationId = channelInfo.ConversationId;
+
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl, DateTime.Now.AddMinutes(5));
+            var connector = new ConnectorClient(new Uri(serviceUrl), AppCredentials);
 
             var message = Activity.CreateMessageActivity();
             if (!string.IsNullOrEmpty(channelInfo.ConversationId) &&
-                !string.IsNullOrEmpty(channelInfo.ConversationId)) {
+                !string.IsNullOrEmpty(channelInfo.ConversationId))
+            {
 
                 message.ChannelId = channelInfo.ConversationId;
             }
@@ -67,7 +74,8 @@ namespace MAIAIBot.TeachersBot
             var students = new List<Student>();
             var attachments = context.Activity.Attachments;
 
-            if (attachments == null) {
+            if (attachments == null)
+            {
                 await context.SendActivity("Прикрептие хотя бы одну фотографию!");
                 return;
             }
