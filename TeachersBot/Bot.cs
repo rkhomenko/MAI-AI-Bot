@@ -13,6 +13,9 @@ using Microsoft.Bot.Schema;
 
 using MAIAIBot.Core;
 
+using CoreActivityTypes = MAIAIBot.Core.ActivityTypes;
+using MicrosoftActivityTypes = Microsoft.Bot.Schema.ActivityTypes;
+
 namespace MAIAIBot.TeachersBot
 {
     public class Bot : IBot
@@ -112,7 +115,7 @@ namespace MAIAIBot.TeachersBot
         {
             switch (context.Activity.Type)
             {
-                case ActivityTypes.Message:
+                case MicrosoftActivityTypes.Message:
                     await CheckPhotos(context);
                     break;
             }

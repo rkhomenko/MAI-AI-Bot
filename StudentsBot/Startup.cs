@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.BotFramework;
 using Microsoft.Bot.Builder.Core.Extensions;
@@ -11,6 +12,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using MAIAIBot.Core;
+
+using CoreApplicationExtensions = MAIAIBot.Core.CustomApplicationBuilderExtensions;
+using MicrosoftApplicationExtensions = Microsoft.Bot.Builder.Integration.AspNet.Core.ApplicationBuilderExtensions;
 
 namespace MAIAIBot.StudentsBot
 {
@@ -109,8 +113,10 @@ namespace MAIAIBot.StudentsBot
             app.UseMvc();
 
             app.UseDefaultFiles()
-                .UseStaticFiles()
-                .UseBotFramework();
+                .UseStaticFiles();
+
+            MicrosoftApplicationExtensions.UseBotFramework(app);
+            CoreApplicationExtensions.UseBotFramework(app);
         }
     }
 
