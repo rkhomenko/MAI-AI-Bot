@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -10,7 +10,6 @@ using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Builder.Prompts;
 using Microsoft.Bot.Schema;
-using Microsoft.Recognizers.Text;
 using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
 
 using MAIAIBot.Core;
@@ -22,7 +21,11 @@ namespace MAIAIBot.StudentsBot
         public const string GatherInfo = "gatherInfo";
         public const string NamePrompt = "namePrompt";
         public const string GroupPrompt = "groupPrompt";
-        public const string PhotoPrompt = "photoPrompt";
+        public const string PhotoPrompt = "photoPrompt0";
+        public static readonly string[] PhotoPrompts =
+        {
+            "photoPrompt1", "photoPrompt2"
+        };
     }
 
     public class Bot : IBot
@@ -30,14 +33,15 @@ namespace MAIAIBot.StudentsBot
         private const int MinPhoto = 3;
         private const int MaxPhoto = 6;
 
-        private readonly DialogSet dialogs;
+        private readonly DialogSet dialogs = null;
         private readonly IDatabaseProvider DatabaseProvider = null;
         private readonly IStorageProvider StorageProvider = null;
         private readonly ICognitiveServiceProvider CognitiveServiceProvider = null;
 
         private async Task NonEmptyStringValidator(ITurnContext context, TextResult result, string message)
         {
-            if (result.Value.Trim().Length == 0) {
+            if (result.Value.Trim().Length == 0)
+            {
                 result.Status = PromptStatus.NotRecognized;
                 await context.SendActivity(message);
             }
@@ -65,29 +69,40 @@ namespace MAIAIBot.StudentsBot
             await dialogContext.Prompt(PromptStep.NamePrompt, "Напиши номер группы:");
         }
 
-        private async Task AskPhotoStep(DialogContext dialogContext, object result, SkipStepFunction next) {
+        private async Task AskPhotoStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
             var state = dialogContext.Context.GetConversationState<BotState>();
             state.Group = (result as TextResult).Value.Trim();
-            await dialogContext.Context.SendActivity($"Прикрепи от {MinPhoto} до {MaxPhoto} фотографий, на которых только ты.");
+            await dialogContext.Prompt(PromptStep.PhotoPrompt, $"Прикрепи {MinPhoto} фотографии, на которых только ты.");
         }
 
-        private async Task<List<string>> UploadPhotos(DialogContext dialogContext, IEnumerable<Attachment> attachments) {
-            Func<string, Stream> urlToStream = url => {
+        private async Task UploadPhotos(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
+            Stream urlToStream(string url)
+            {
                 byte[] imageData = null;
                 using (var wc = new System.Net.WebClient())
                     imageData = wc.DownloadData(url);
                 return new MemoryStream(imageData);
-            };
-
-
-            var result = new List<string>();
-            foreach (var attachment in attachments) {
-                var url = await StorageProvider.Load(urlToStream(attachment.ContentUrl),
-                    attachment.Name);
-                result.Add(url.ToString());
             }
 
-            return result;
+            var context = dialogContext.Context;
+            var state = context.GetConversationState<BotState>();
+
+            foreach (var attachment in dialogContext.Context.Activity.Attachments)
+            {
+                var url = await StorageProvider.Load(urlToStream(attachment.ContentUrl),
+                    attachment.Name);
+                state.AddImgUrl(url.ToString());
+            }
+
+            if (state.ImgUrls.Count >= MinPhoto)
+            {
+                await next();
+                return;
+            }
+
+            await dialogContext.Prompt(PromptStep.PhotoPrompt, $"{state.ImgUrls.Count} Прикрепи еще фото.");
         }
 
         private async Task GatherStudentInfo(DialogContext dialogContext)
@@ -95,7 +110,6 @@ namespace MAIAIBot.StudentsBot
             var context = dialogContext.Context;
             var state = context.GetConversationState<BotState>();
             var attachments = context.Activity.Attachments;
-            var imgUrls = await UploadPhotos(dialogContext, attachments);
 
             var studentChannelInfo = new StudentChannelInfo
             {
@@ -110,12 +124,12 @@ namespace MAIAIBot.StudentsBot
 
             var student = new Student(state.Name,
                                       state.Group,
-                                      imgUrls,
+                                      state.ImgUrls,
                                       studentChannelInfo);
 
             await DatabaseProvider.AddStudent(student);
 
-            var imgUrlsSas = from imgUrl in imgUrls
+            var imgUrlsSas = from imgUrl in state.ImgUrls
                              select StorageProvider.GetCorrectUri(new Uri(imgUrl)).ToString();
             await CognitiveServiceProvider.AddPerson(student.Id, imgUrlsSas);
             await CognitiveServiceProvider.TrainGroup();
@@ -145,15 +159,21 @@ namespace MAIAIBot.StudentsBot
                 new PromptsDialog.TextPrompt(GroupValidator));
             dialogs.Add(PromptStep.PhotoPrompt,
                 new PromptsDialog.AttachmentPrompt());
+            dialogs.Add(PromptStep.PhotoPrompts[0],
+                new PromptsDialog.AttachmentPrompt());
+            dialogs.Add(PromptStep.PhotoPrompts[1],
+                new PromptsDialog.AttachmentPrompt());
             dialogs.Add(PromptStep.GatherInfo,
-                new WaterfallStep[] { AskNameStep, AskGroupStep, AskPhotoStep, GatherInfoStep });
+                new WaterfallStep[]
+                {
+                    AskNameStep, AskGroupStep, AskPhotoStep, UploadPhotos, UploadPhotos, GatherInfoStep
+                });
         }
 
         public async Task OnTurn(ITurnContext context)
         {
             var state = context.GetConversationState<BotState>();
             var dialogCtx = dialogs.CreateContext(context, state);
-
 
             await DatabaseProvider.Init();
 

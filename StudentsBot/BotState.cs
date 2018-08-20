@@ -7,11 +7,13 @@ namespace MAIAIBot.StudentsBot
         private const string NameKey = "name";
         private const string GroupKey = "group";
         private const string RegistrationCompleteKey = "registration";
+        private const string ImgUrlsKey = "imgUrls";
 
         public BotState()
         {
-            this[NameKey] = null;
-            this[GroupKey] = null;
+            this[NameKey] = "";
+            this[GroupKey] = "";
+            this[ImgUrlsKey] = new List<string>();
             this[RegistrationCompleteKey] = false;
         }
 
@@ -31,6 +33,17 @@ namespace MAIAIBot.StudentsBot
         {
             get => (bool)this[RegistrationCompleteKey];
             set => this[RegistrationCompleteKey] = value;
+        }
+
+        public List<string> ImgUrls
+        {
+            get => (List<string>)this[ImgUrlsKey];
+            set => this[ImgUrlsKey] = value;
+        }
+
+        public void AddImgUrl(string url)
+        {
+            ImgUrls.Add(url);
         }
     }
 }
