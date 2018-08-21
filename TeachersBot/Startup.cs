@@ -11,9 +11,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 using MAIAIBot.Core;
 
-using CoreApplicationExtensions = MAIAIBot.Core.CustomApplicationBuilderExtensions;
-using MicrosoftApplicationExtensions = Microsoft.Bot.Builder.Integration.AspNet.Core.ApplicationBuilderExtensions;
-
 namespace MAIAIBot.TeachersBot
 {
     public class Startup
@@ -99,9 +96,8 @@ namespace MAIAIBot.TeachersBot
             app.UseMvc();
 
             app.UseDefaultFiles()
-                .UseStaticFiles();
-
-            MicrosoftApplicationExtensions.UseBotFramework(app);
+                .UseStaticFiles()
+                .UseBotFramework();
         }
     }
 

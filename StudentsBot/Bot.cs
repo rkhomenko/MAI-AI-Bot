@@ -14,9 +14,6 @@ using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
 
 using MAIAIBot.Core;
 
-using CoreActivityTypes = MAIAIBot.Core.ActivityTypes;
-using MicrosoftActivityTypes = Microsoft.Bot.Schema.ActivityTypes;
-
 namespace MAIAIBot.StudentsBot
 {
     public static class PromptStep
@@ -182,10 +179,10 @@ namespace MAIAIBot.StudentsBot
 
             switch (context.Activity.Type)
             {
-                case CoreActivityTypes.MyProactive:
+                case Constants.ActivityTypes.MyProactive:
                     await context.SendActivity("Get proactive activity!");
                     break;
-                case MicrosoftActivityTypes.ConversationUpdate:
+                case ActivityTypes.ConversationUpdate:
                     var newUserName = context.Activity.MembersAdded[0]?.Name;
                     if (!string.IsNullOrWhiteSpace(newUserName) && newUserName != "Bot")
                     {
@@ -194,7 +191,7 @@ namespace MAIAIBot.StudentsBot
                             + "Напиши что-нибудь, чтобы начать регистрацию.");
                     }
                     break;
-                case MicrosoftActivityTypes.Message:
+                case ActivityTypes.Message:
                     if (state.RegistrationComplete)
                     {
                         await context.SendActivity("Ты уже в списке)");

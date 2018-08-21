@@ -13,5 +13,10 @@ namespace MAIAIBot.Core
         public const string AzureStorageImagePrefix = "maiaibotphoto-";
         public const string AzureStorageSasTokenIndex = "AzureStorage:SasToken";
         public const string AzureStorageConnectionStrIndex = "AzureStorage:ConnectionString";
+
+        public static class ActivityTypes
+        {
+            public const string MyProactive = "myproactive";
+        }
     }
 }
