@@ -7,9 +7,11 @@ using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Dialogs;
+using Microsoft.Bot.Builder.Prompts.Choices;
 using Microsoft.Bot.Connector;
 using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
+using Microsoft.Recognizers.Text;
 
 using MAIAIBot.Core;
 
@@ -108,12 +110,47 @@ namespace MAIAIBot.TeachersBot
             }
         }
 
+        private async Task OnProactiveMessage(ITurnContext context)
+        {
+            var replyActivity = context.Activity.CreateReply();
+            var attachments = new List<Attachment>();
+
+            var heroCard = new HeroCard()
+            {
+                Title = "Студент Иванов сейчас на лекции",
+                Images = new List<CardImage>()
+                {
+                    new CardImage("https://sec.ch9.ms/ch9/7ff5/e07cfef0-aa3b-40bb-9baa-7c9ef8ff7ff5/buildreactionbotframework_960.jpg")
+                },
+                Buttons = new List<CardAction>()
+                {
+                    new CardAction()
+                    {
+                        Type = ActionTypes.OpenUrl,
+                        Title = "Подвердить",
+                        Value = "https://docs.microsoft.com/en-us/azure/bot-service/"
+                    },
+                    new CardAction()
+                    {
+                        Type = ActionTypes.OpenUrl,
+                        Title = "Отклонить",
+                        Value = "https://docs.microsoft.com/en-us/azure/bot-service/"
+                    }
+                }
+            };
+
+            attachments.Add(heroCard.ToAttachment());
+            replyActivity.Attachments = attachments;
+
+            await context.SendActivity(replyActivity);
+        }
+
         public async Task OnTurn(ITurnContext context)
         {
             switch (context.Activity.Type)
             {
                 case Constants.ActivityTypes.MyProactive:
-                    await context.SendActivity("Proactive");
+                    await OnProactiveMessage(context);
                     break;
                 case ActivityTypes.Message:
                     await CheckPhotos(context);
