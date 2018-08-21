@@ -187,7 +187,6 @@ namespace MAIAIBot.StudentsBot
                     break;
                 case MicrosoftActivityTypes.ConversationUpdate:
                     var newUserName = context.Activity.MembersAdded[0]?.Name;
-                    await context.SendActivity($"{context.Activity.Type}");
                     if (!string.IsNullOrWhiteSpace(newUserName) && newUserName != "Bot")
                     {
                         await context.SendActivity("Привет! Я буду отмечать тебя на лекциях, "
