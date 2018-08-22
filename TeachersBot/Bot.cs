@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -20,6 +21,8 @@ namespace MAIAIBot.TeachersBot
     public class Bot : IBot
     {
         private const int Timeout = 1000;
+        private const string AcceptStudentCommand = "Accept";
+        private const string DeclineStudentCommand = "Decline";
 
         private readonly MicrosoftAppCredentials AppCredentials;
         private readonly IDatabaseProvider DatabaseProvider;
@@ -82,6 +85,8 @@ namespace MAIAIBot.TeachersBot
                 return;
             }
 
+            var studentsList = "";
+            int index = 1;
             foreach (var attachment in attachments)
             {
                 var url = await StorageProvider.Load(await StorageProvider.GetStream(
@@ -97,17 +102,20 @@ namespace MAIAIBot.TeachersBot
                     student.AddVisit(DateTime.Now);
                     await DatabaseProvider.UpdateStudent(student);
 
-                    await context.SendActivity($"{student.Name} {student.Group}");
-                    await NotifyStudent(context, student);
+                    studentsList += $"{index,5} {student.Name}" + "\n";
 
-                    if (result.CandidateIds.Count > 1)
+                    /* if (result.CandidateIds.Count > 1)
                     {
-                        await context.SendActivity("WARNING: для этого студента есть несколько кандидатов!");
-                    }
+                        await context.SendActivity("Внимание: для этого студента есть несколько кандидатов!");
+                    } */
 
                     Thread.Sleep(Timeout);
                 }
+
+                await StorageProvider.Remove(url);
             }
+
+            await context.SendActivity(studentsList);
         }
 
         private async Task OnProactiveMessage(ITurnContext context)
@@ -115,26 +123,28 @@ namespace MAIAIBot.TeachersBot
             var replyActivity = context.Activity.CreateReply();
             var attachments = new List<Attachment>();
 
+            var student = await DatabaseProvider.GetStudent(context.Activity.Text);
+
             var heroCard = new HeroCard()
             {
-                Title = "Студент Иванов сейчас на лекции",
+                Text = $"Студент {student.Name} ({student.Group}) сейчас на лекции",
                 Images = new List<CardImage>()
                 {
-                    new CardImage("https://sec.ch9.ms/ch9/7ff5/e07cfef0-aa3b-40bb-9baa-7c9ef8ff7ff5/buildreactionbotframework_960.jpg")
+                    new CardImage(StorageProvider.GetCorrectUri(new Uri(student.ImgUrls[0])).ToString())
                 },
                 Buttons = new List<CardAction>()
                 {
                     new CardAction()
                     {
-                        Type = ActionTypes.OpenUrl,
+                        Type = ActionTypes.ImBack,
                         Title = "Подвердить",
-                        Value = "https://docs.microsoft.com/en-us/azure/bot-service/"
+                        Value = $"Accept {student.Id}"
                     },
                     new CardAction()
                     {
-                        Type = ActionTypes.OpenUrl,
+                        Type = ActionTypes.ImBack,
                         Title = "Отклонить",
-                        Value = "https://docs.microsoft.com/en-us/azure/bot-service/"
+                        Value = $"Decline {student.Id}"
                     }
                 }
             };
@@ -145,15 +155,54 @@ namespace MAIAIBot.TeachersBot
             await context.SendActivity(replyActivity);
         }
 
+        private async Task AcceptStudent(ITurnContext context, string id)
+        {
+            var student = await DatabaseProvider.GetStudent(id);
+
+            student.AddVisit(DateTime.Now);
+            await DatabaseProvider.UpdateStudent(student);
+
+            // Send accept to student
+        }
+
+        private async Task DeclineStudent(ITurnContext context, string id)
+        {
+            // Send decline to student
+        }
+
         public async Task OnTurn(ITurnContext context)
         {
+            string pattern = $"({AcceptStudentCommand}|{DeclineStudentCommand})\\s+(\\S+)";
+
             switch (context.Activity.Type)
             {
                 case Constants.ActivityTypes.MyProactive:
                     await OnProactiveMessage(context);
                     break;
                 case ActivityTypes.Message:
-                    await CheckPhotos(context);
+                    if (context.Activity.Attachments != null)
+                    {
+                        await CheckPhotos(context);
+                    }
+                    else if (context.Activity.Text != null)
+                    {
+                        var matches = Regex.Match(context.Activity.Text, pattern);
+                        if (matches.Success)
+                        {
+                            var command = matches.Groups[1].ToString();
+                            var id = matches.Groups[2].ToString();
+
+                            switch (command)
+                            {
+                                case AcceptStudentCommand:
+                                    await AcceptStudent(context, id);
+                                    break;
+                                case DeclineStudentCommand:
+                                    await DeclineStudent(context, id);
+                                    break;
+                            }
+                        }
+                    }
                     break;
             }
         }
