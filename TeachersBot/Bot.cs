@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
 
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
@@ -21,8 +24,6 @@ namespace MAIAIBot.TeachersBot
     public class Bot : IBot
     {
         private const int Timeout = 1000;
-        private const string AcceptStudentCommand = "Accept";
-        private const string DeclineStudentCommand = "Decline";
 
         private readonly MicrosoftAppCredentials AppCredentials;
         private readonly IDatabaseProvider DatabaseProvider;
@@ -42,36 +43,45 @@ namespace MAIAIBot.TeachersBot
 
         private async Task NotifyStudent(ITurnContext context, Student student)
         {
-            var channelInfo = student.ChannelInfo;
-            var userAccount = new ChannelAccount(channelInfo.ToId, channelInfo.ToName);
-            var botAccount = new ChannelAccount(context.Activity.From.Id, context.Activity.From.Name);
-            var serviceUrl = context.Activity.ServiceUrl;
-            var conversationId = channelInfo.ConversationId;
+            var dateTime = DateTime.Now.ToString("MM/dd/yy H:mm:ss");
 
-            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl, DateTime.Now.AddMinutes(5));
-            var connector = new ConnectorClient(new Uri(serviceUrl), AppCredentials);
-
-            var message = Activity.CreateMessageActivity();
-            if (!string.IsNullOrEmpty(channelInfo.ConversationId) &&
-                !string.IsNullOrEmpty(channelInfo.ConversationId))
+            var message = new Message
             {
+                Conversation = new Message.ConversationInfo
+                {
+                    Id = student.ChannelInfo.ConversationId
+                },
+                ServiceUrl = student.ChannelInfo.ServiceUrl,
+                ChannelId = student.ChannelInfo.ChannelId,
+                From = new Message.FromToInfo()
+                {
+                    Id = context.Activity.From.Id,
+                    Role = context.Activity.From.Role,
+                },
+                Recipient = new Message.FromToInfo()
+                {
+                    Id = student.ChannelInfo.ToId,
+                    Name = student.ChannelInfo.ToName,
+                    Role = "bot"
+                },
+                Text = $"{Constants.NotifyStudentCommand}: \"@{context.Activity.From.Name}\" \"{dateTime}\""
+            };
 
-                message.ChannelId = channelInfo.ConversationId;
-            }
-            else
+
+            HttpClient client = new HttpClient
             {
-                conversationId = (await connector.Conversations.CreateDirectConversationAsync(
-                    botAccount, userAccount)).Id;
-            }
+                BaseAddress = new Uri("http://localhost:23116/api/messages")
+            };
 
-            message.From = botAccount;
-            message.Recipient = userAccount;
-            message.Conversation = new ConversationAccount(id: conversationId);
-            message.Text = $"Ты был на лекции {student.Visits[student.Visits.Count - 1]}";
-            message.Locale = "ru-ru";
+            var jsonString = message.ToString();
+            var stringContent = new StringContent(jsonString);
+            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            var responce = await client.PostAsync("http://localhost:23116/api/messages", stringContent);
 
-            await connector.Conversations.SendToConversationAsync(message as Activity);
+            client.Dispose();
 
+            //await context.SendActivity(responce.StatusCode);
+            //await context.SendActivity(jsonString);
         }
 
         private async Task CheckPhotos(ITurnContext context)
@@ -102,20 +112,35 @@ namespace MAIAIBot.TeachersBot
                     student.AddVisit(DateTime.Now);
                     await DatabaseProvider.UpdateStudent(student);
 
-                    studentsList += $"{index,5} {student.Name}" + "\n";
+                    studentsList += $"{index++,5}. {student.Name}" + "\n";
 
-                    /* if (result.CandidateIds.Count > 1)
-                    {
-                        await context.SendActivity("Внимание: для этого студента есть несколько кандидатов!");
-                    } */
+                    await NotifyStudent(context, student);
 
                     Thread.Sleep(Timeout);
                 }
 
-                await StorageProvider.Remove(url);
+                //await StorageProvider.Remove(url);
             }
 
             await context.SendActivity(studentsList);
+        }
+
+        private async Task Registration(ITurnContext context)
+        {
+            var teacher = new Student(context.Activity.From.Name,
+                Constants.TeachersGroupName,
+                new List<string>(),
+                new StudentChannelInfo
+                {
+                    ToId = context.Activity.Recipient.Id,
+                    ToName = context.Activity.Recipient.Name,
+                    ServiceUrl = context.Activity.ServiceUrl,
+                    ChannelId = context.Activity.ChannelId,
+                    ConversationId = context.Activity.Conversation.Id
+                },
+                true);
+
+            await DatabaseProvider.AddStudent(teacher);
         }
 
         private async Task OnProactiveMessage(ITurnContext context)
@@ -155,24 +180,60 @@ namespace MAIAIBot.TeachersBot
             await context.SendActivity(replyActivity);
         }
 
-        private async Task AcceptStudent(ITurnContext context, string id)
+        private async Task SendResponseToStudent(ITurnContext context, string id, string command)
         {
             var student = await DatabaseProvider.GetStudent(id);
 
-            student.AddVisit(DateTime.Now);
-            await DatabaseProvider.UpdateStudent(student);
+            var message = new Message
+            {
+                Conversation = new Message.ConversationInfo
+                {
+                    Id = student.ChannelInfo.ConversationId
+                },
+                ServiceUrl = student.ChannelInfo.ServiceUrl,
+                ChannelId = student.ChannelInfo.ChannelId,
+                From = new Message.FromToInfo()
+                {
+                    Id = context.Activity.From.Id,
+                    Role = context.Activity.From.Role,
+                },
+                Recipient = new Message.FromToInfo()
+                {
+                    Id = student.ChannelInfo.ToId,
+                    Name = student.ChannelInfo.ToName,
+                    Role = "bot"
+                },
+                Text = command
+            };
+                    
 
-            // Send accept to student
-        }
+            HttpClient client = new HttpClient
+            {
+                BaseAddress = new Uri("http://localhost:23116/api/messages")
+            };
 
-        private async Task DeclineStudent(ITurnContext context, string id)
-        {
-            // Send decline to student
+            var jsonString = message.ToString();
+            var stringContent = new StringContent(jsonString);
+            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            var responce = await client.PostAsync("http://localhost:23116/api/messages", stringContent);
+
+            client.Dispose();
+
+            // --> Debug
+            //await context.SendActivity(responce.ToString());
+            //await context.SendActivity(jsonString);
+
+            if (command == Constants.AcceptStudentCommand)
+            {
+                student.AddVisit(DateTime.Now);
+                await DatabaseProvider.UpdateStudent(student);
+            }
         }
 
         public async Task OnTurn(ITurnContext context)
         {
-            string pattern = $"({AcceptStudentCommand}|{DeclineStudentCommand})\\s+(\\S+)";
+            string pattern = $"({Constants.AcceptStudentCommand}|{Constants.DeclineStudentCommand})\\s+(\\S+)";
+            var state = context.GetConversationState<BotState>();
 
             switch (context.Activity.Type)
             {
@@ -180,6 +241,12 @@ namespace MAIAIBot.TeachersBot
                     await OnProactiveMessage(context);
                     break;
                 case ActivityTypes.Message:
+                    if (!state.RegistrationComplete)
+                    {
+                        await Registration(context);
+                        state.RegistrationComplete = true;
+                    }
+
                     if (context.Activity.Attachments != null)
                     {
                         await CheckPhotos(context);
@@ -192,15 +259,11 @@ namespace MAIAIBot.TeachersBot
                             var command = matches.Groups[1].ToString();
                             var id = matches.Groups[2].ToString();
 
-                            switch (command)
-                            {
-                                case AcceptStudentCommand:
-                                    await AcceptStudent(context, id);
-                                    break;
-                                case DeclineStudentCommand:
-                                    await DeclineStudent(context, id);
-                                    break;
-                            }
+                            await SendResponseToStudent(context, id, command);
+                        }
+                        else
+                        {
+                            await context.SendActivity("Прикрепите хотя бы одну фотографию!");
                         }
                     }
                     break;

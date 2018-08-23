@@ -1,16 +1,25 @@
 using System;
 
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net.Http.Headers;
 
 using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Builder.Prompts;
+using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Configuration;
 using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
+
+using Newtonsoft.Json;
 
 using MAIAIBot.Core;
 
@@ -32,7 +41,9 @@ namespace MAIAIBot.StudentsBot
     {
         private const int MinPhoto = 3;
         private const int MaxPhoto = 6;
+        private const string ImHere = "Я на лекции";
 
+        private readonly IConfiguration Configuration;
         private readonly DialogSet dialogs = null;
         private readonly IDatabaseProvider DatabaseProvider = null;
         private readonly IStorageProvider StorageProvider = null;
@@ -89,6 +100,12 @@ namespace MAIAIBot.StudentsBot
             var context = dialogContext.Context;
             var state = context.GetConversationState<BotState>();
 
+            if (state.ImgUrls.Count >= MinPhoto)
+            {
+                await next();
+                return;
+            }
+
             foreach (var attachment in dialogContext.Context.Activity.Attachments)
             {
                 var url = await StorageProvider.Load(urlToStream(attachment.ContentUrl),
@@ -96,27 +113,26 @@ namespace MAIAIBot.StudentsBot
                 state.AddImgUrl(url.ToString());
             }
 
+            Thread.Sleep(1000);
+
             if (state.ImgUrls.Count >= MinPhoto)
             {
                 await next();
                 return;
             }
 
-            await dialogContext.Prompt(PromptStep.PhotoPrompt, $"{state.ImgUrls.Count} Прикрепи еще фото.");
+            await dialogContext.Prompt(PromptStep.PhotoPrompt, $"Прикрепи еще фото (осталось {MinPhoto - state.ImgUrls.Count}).");
         }
 
         private async Task GatherStudentInfo(DialogContext dialogContext)
         {
             var context = dialogContext.Context;
             var state = context.GetConversationState<BotState>();
-            var attachments = context.Activity.Attachments;
 
             var studentChannelInfo = new StudentChannelInfo
             {
-                ToId = context.Activity.From.Id,
-                ToName = context.Activity.From.Name,
-                FromId = context.Activity.Recipient.Id,
-                FromName = context.Activity.Recipient.Name,
+                ToId = context.Activity.Recipient.Id,
+                ToName = context.Activity.Recipient.Name,
                 ServiceUrl = context.Activity.ServiceUrl,
                 ChannelId = context.Activity.ChannelId,
                 ConversationId = context.Activity.Conversation.Id
@@ -135,6 +151,7 @@ namespace MAIAIBot.StudentsBot
             await CognitiveServiceProvider.TrainGroup();
 
             state.RegistrationComplete = true;
+            state.Id = student.Id;
         }
 
         private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
@@ -144,10 +161,12 @@ namespace MAIAIBot.StudentsBot
             await dialogContext.End();
         }
 
-        public Bot(IDatabaseProvider databaseProvider,
+        public Bot(IConfiguration configuration,
+                   IDatabaseProvider databaseProvider,
                    IStorageProvider storageProvider,
                    ICognitiveServiceProvider cognitiveServiceProvider)
         {
+            Configuration = configuration;
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
             CognitiveServiceProvider = cognitiveServiceProvider;
@@ -170,6 +189,53 @@ namespace MAIAIBot.StudentsBot
                 });
         }
 
+        public async Task NotifyTeacher(ITurnContext context, string studentId, string teacherId)
+        {
+            var teacher = await DatabaseProvider.GetStudent(teacherId);
+
+            var message = new Message
+            {
+                Conversation = new Message.ConversationInfo
+                {
+                    Id = teacher.ChannelInfo.ConversationId
+                },
+                ServiceUrl = teacher.ChannelInfo.ServiceUrl,
+                ChannelId = teacher.ChannelInfo.ChannelId,
+                From = new Message.FromToInfo()
+                {
+                    Id = context.Activity.From.Id,
+                    Role = context.Activity.From.Role,
+                },
+                Recipient = new Message.FromToInfo()
+                {
+                    Id = teacher.ChannelInfo.ToId,
+                    Name = teacher.ChannelInfo.ToName,
+                    Role = "bot"
+                },
+                Text = studentId
+            };
+
+            // --> For Production use only!
+            //var accessToken = await Authorization.GetAccessToken(Configuration["TeachersBotAppId"], Configuration["TeachersBotAppPassword"]);
+
+            HttpClient client = new HttpClient
+            {
+                BaseAddress = new Uri("http://localhost:47456/api/messages"),
+            };
+            // --> client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
+
+            var jsonString = message.ToString();
+            var stringContent = new StringContent(jsonString);
+            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            var responce = await client.PostAsync("http://localhost:47456/api/messages", stringContent);
+
+            client.Dispose();
+
+            // --> Debug
+            //await context.SendActivity(responce.ToString());
+            //await context.SendActivity(jsonString);
+        }
+
         public async Task OnTurn(ITurnContext context)
         {
             var state = context.GetConversationState<BotState>();
@@ -180,28 +246,101 @@ namespace MAIAIBot.StudentsBot
             switch (context.Activity.Type)
             {
                 case Constants.ActivityTypes.MyProactive:
-                    await context.SendActivity("Get proactive activity!");
+                    {
+                        string responsePattern = $"({Constants.AcceptStudentCommand}|{Constants.DeclineStudentCommand})";
+                        string notificationPattern = $"{Constants.NotifyStudentCommand}:\\s+\"(\\S+)\"\\s+\"(.+)\"";
+                        var matches = Regex.Match(context.Activity.Text, responsePattern);
+                        if (matches.Success)
+                        {
+                            switch (matches.Groups[1].ToString())
+                            {
+                                case Constants.AcceptStudentCommand:
+                                    await context.SendActivity("Преподаватель подтвердил твоё присутствие.");
+                                    break;
+                                case Constants.DeclineStudentCommand:
+                                    await context.SendActivity("Преподаватель не подтвердил твоё присутствие.");
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            matches = Regex.Match(context.Activity.Text, notificationPattern);
+                            if (matches.Success)
+                            {
+                                await context.SendActivity($"{matches.Groups[1]} отметил тебя на лекции ({matches.Groups[2]})");
+                            }
+                        }
+                    }
                     break;
                 case ActivityTypes.ConversationUpdate:
-                    var newUserName = context.Activity.MembersAdded[0]?.Name;
-                    if (!string.IsNullOrWhiteSpace(newUserName) && newUserName != "Bot")
                     {
-                        await context.SendActivity("Привет! Я буду отмечать тебя на лекциях, "
-                            + "но сначала нужно зарегистрироваться и отправить мне фотки) "
-                            + "Напиши что-нибудь, чтобы начать регистрацию.");
+                        var newUserName = context.Activity.MembersAdded[0]?.Name;
+                        if (!string.IsNullOrWhiteSpace(newUserName) && newUserName != "Bot")
+                        {
+                            await context.SendActivity("Привет! Я буду отмечать тебя на лекциях, "
+                                + "но сначала нужно зарегистрироваться и отправить мне фотки) "
+                                + "Напиши что-нибудь, чтобы начать регистрацию.");
+                        }
                     }
                     break;
                 case ActivityTypes.Message:
-                    if (state.RegistrationComplete)
                     {
-                        await context.SendActivity("Ты уже в списке)");
-                    }
-                    else
-                    {
-                        await dialogCtx.Continue();
-                        if (!context.Responded)
+                        if (context.Activity.Text == ImHere
+                            &&
+                            state.RegistrationComplete)
                         {
-                            await dialogCtx.Begin(PromptStep.GatherInfo);
+                            var teachers = from teacher in DatabaseProvider.GetAllStudents()
+                                           where teacher.IsTeacher
+                                           select teacher;
+                            var teacherButtons = new List<CardAction>();
+
+                            foreach (var teacher in teachers)
+                            {
+                                teacherButtons.Add(new CardAction()
+                                {
+                                    Type = ActionTypes.ImBack,
+                                    Title = $"{teacher.Name}",
+                                    Value = $"{Constants.NotifyTeacherCommand} {teacher.Id}"
+                                });
+                            }
+
+                            var heroCard = new HeroCard()
+                            {
+                                Text = "Выбери преподавателя:",
+                                Images = new List<CardImage>(),
+                                Buttons = teacherButtons
+                            };
+
+                            var replyActivity = context.Activity.CreateReply();
+                            replyActivity.Attachments = new List<Attachment> {
+                                heroCard.ToAttachment()
+                            };
+
+                            await context.SendActivity(replyActivity);
+                        }
+                        else if (state.RegistrationComplete)
+                        {
+                            string pattern = $"({Constants.NotifyTeacherCommand})\\s+(\\S+)";
+                            if (context.Activity.Text != null)
+                            {
+                                var matches = Regex.Match(context.Activity.Text, pattern);
+                                if (matches.Success)
+                                {
+                                    await NotifyTeacher(context, state.Id, matches.Groups[2].ToString());
+                                }
+                                else
+                                {
+                                    await context.SendActivity("Ты уже в списке)");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            await dialogCtx.Continue();
+                            if (!context.Responded)
+                            {
+                                await dialogCtx.Begin(PromptStep.GatherInfo);
+                            }
                         }
                     }
                     break;

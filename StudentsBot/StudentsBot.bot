@@ -10,14 +10,6 @@
             "appPassword": "",
             "endpoint": "http://localhost:23116/api/messages",
             "name": "http://localhost:23116/api/messages"
-        },
-        {
-            "id": "cbb52920-a50f-11e8-b6f0-13540bd28029",
-            "name": "http://localhost:23116/api/myproactive",
-            "type": "endpoint",
-            "appId": "",
-            "appPassword": "",
-            "endpoint": "http://localhost:23116/api/myproactive"
         }
     ]
 }

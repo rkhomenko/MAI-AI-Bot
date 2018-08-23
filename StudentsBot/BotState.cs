@@ -4,6 +4,7 @@ namespace MAIAIBot.StudentsBot
 {
     public class BotState : Dictionary<string, object>
     {
+        private const string IdKey = "id";
         private const string NameKey = "name";
         private const string GroupKey = "group";
         private const string RegistrationCompleteKey = "registration";
@@ -11,10 +12,17 @@ namespace MAIAIBot.StudentsBot
 
         public BotState()
         {
+            this[IdKey] = "";
             this[NameKey] = "";
             this[GroupKey] = "";
             this[ImgUrlsKey] = new List<string>();
             this[RegistrationCompleteKey] = false;
+        }
+
+        public string Id
+        {
+            get => (string)this[IdKey];
+            set => this[IdKey] = value;
         }
 
         public string Name

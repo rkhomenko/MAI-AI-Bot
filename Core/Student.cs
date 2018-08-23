@@ -27,12 +27,14 @@ namespace MAIAIBot.Core
         public Student(string name,
                        string group,
                        List<string> imgUrls,
-                       StudentChannelInfo channelInfo)
+                       StudentChannelInfo channelInfo,
+                       bool isTheacher = false)
         {
             Id = Guid.NewGuid().ToString();
             Name = name;
             Group = group;
             ImgUrls = imgUrls;
+            IsTeacher = isTheacher;
             ChannelInfo = channelInfo;
             Visits = new List<DateTime>();
             Variants = new List<int>();
@@ -44,6 +46,8 @@ namespace MAIAIBot.Core
         public string Name { get; set; }
 
         public string Group { get; set; }
+
+        public bool IsTeacher { get; set; }
 
         public List<string> ImgUrls { get; set; }
 

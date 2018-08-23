@@ -78,6 +78,8 @@ namespace MAIAIBot.TeachersBot
                 }));
 
                 IStorage dataStore = new MemoryStorage();
+
+                options.Middleware.Add(new ConversationState<BotState>(dataStore));
             });
         }
 

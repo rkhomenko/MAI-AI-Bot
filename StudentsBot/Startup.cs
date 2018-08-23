@@ -76,6 +76,8 @@ namespace MAIAIBot.StudentsBot
                     endpoint);
             });
 
+            services.AddSingleton(Configuration);
+
             services.AddBot<Bot>(options =>
             {
                 options.CredentialProvider = new ConfigurationCredentialProvider(Configuration);
@@ -83,7 +85,7 @@ namespace MAIAIBot.StudentsBot
                 options.Middleware.Add(new CatchExceptionMiddleware<Exception>(async (context, exception) =>
                 {
                     await context.TraceActivity("Exception", exception);
-                    await context.SendActivity("Sorry, it looks like something went wrong!");
+                    await context.SendActivity($"{exception}");
                 }));
 
                 IStorage dataStore = new MemoryStorage();

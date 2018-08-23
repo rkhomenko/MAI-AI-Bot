@@ -18,5 +18,11 @@ namespace MAIAIBot.Core
         {
             public const string MyProactive = "myproactive";
         }
+
+        public const string TeachersGroupName = "Teachers";
+        public const string AcceptStudentCommand = "Accept";
+        public const string NotifyTeacherCommand = "Notify";
+        public const string DeclineStudentCommand = "Decline";
+        public const string NotifyStudentCommand = "Notification";
     }
 }
