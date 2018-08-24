@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeachersBot", "TeachersBot\TeachersBot.csproj", "{DE31D8E7-E7C3-442F-B5D8-B49F494E3B3A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VisitationViewer", "VisitationViewer\VisitationViewer.csproj", "{27D1CAAA-36A1-443E-84C4-A860EB046647}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -58,5 +60,17 @@ Global
 		{DE31D8E7-E7C3-442F-B5D8-B49F494E3B3A}.Release|x64.Build.0 = Release|Any CPU
 		{DE31D8E7-E7C3-442F-B5D8-B49F494E3B3A}.Release|x86.ActiveCfg = Release|Any CPU
 		{DE31D8E7-E7C3-442F-B5D8-B49F494E3B3A}.Release|x86.Build.0 = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|x64.Build.0 = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Debug|x86.Build.0 = Debug|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|Any CPU.Build.0 = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|x64.ActiveCfg = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|x64.Build.0 = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|x86.ActiveCfg = Release|Any CPU
+		{27D1CAAA-36A1-443E-84C4-A860EB046647}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
