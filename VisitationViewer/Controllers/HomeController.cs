@@ -6,12 +6,29 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using VisitationViewer.Models;
 
+using MAIAIBot.Core;
+
 namespace VisitationViewer.Controllers
 {
     public class HomeController : Controller
     {
+        private readonly IDatabaseProvider DatabaseProvider;
+
+        public HomeController(IDatabaseProvider dabaseProvider)
+        {
+            DatabaseProvider = dabaseProvider;
+            DatabaseProvider.Init().Wait();
+        }
+
         public IActionResult Index()
         {
+            var students = (from student in DatabaseProvider.GetAllStudents()
+                            where !student.IsTeacher
+                            select student).ToList();
+
+            ViewData["Students"] = students;
+            ViewData["RowCount"] = students[0].Visits.Count;
+
             return View();
         }
 

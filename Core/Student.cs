@@ -22,6 +22,13 @@ namespace MAIAIBot.Core
         public string ConversationId { get; set; }
     }
 
+    public class VisitInfo
+    {
+        public DateTime Date { get; set; }
+
+        public bool Visited { get; set; }
+    }
+
     public class Student
     {
         public Student(string name,
@@ -36,7 +43,7 @@ namespace MAIAIBot.Core
             ImgUrls = imgUrls;
             IsTeacher = isTheacher;
             ChannelInfo = channelInfo;
-            Visits = new List<DateTime>();
+            Visits = new List<VisitInfo>();
             Variants = new List<int>();
         }
 
@@ -51,7 +58,7 @@ namespace MAIAIBot.Core
 
         public List<string> ImgUrls { get; set; }
 
-        public List<DateTime> Visits { get; set; }
+        public List<VisitInfo> Visits { get; set; }
 
         public List<int> Variants { get; set; }
 
@@ -60,12 +67,22 @@ namespace MAIAIBot.Core
         public override string ToString()
             => JsonConvert.SerializeObject(this);
 
-        public void AddVisit(DateTime dateTime)
+        public void AddVisit(DateTime dateTime, bool visited)
         {
             if (Visits == null) {
-                Visits = new List<DateTime>();
+                Visits = new List<VisitInfo>();
             }
-            Visits.Add(dateTime);
+            Visits.Add(new VisitInfo
+            {
+                Date = dateTime,
+                Visited = visited
+            });
+        }
+
+        public void UpdateLastVisit(bool visited)
+        {
+            var lastVisit = Visits[Visits.Count - 1];
+            lastVisit.Visited = visited;
         }
 
         public void AddVariant(int variant)

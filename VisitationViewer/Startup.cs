@@ -10,13 +10,27 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
+using MAIAIBot.Core;
+
 namespace VisitationViewer
 {
     public class Startup
     {
-        public Startup(IConfiguration configuration)
+        /*public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
+        }*/
+
+        public Startup(IHostingEnvironment env)
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(env.ContentRootPath)
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile($"appsettings.{env.EnvironmentName}.json", optional: true, reloadOnChange: true)
+                .AddUserSecrets<Startup>()
+                .AddEnvironmentVariables();
+
+            Configuration = builder.Build();
         }
 
         public IConfiguration Configuration { get; }
@@ -33,6 +47,13 @@ namespace VisitationViewer
 
 
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+
+            services.AddTransient<IDatabaseProvider>(serviceProvider =>
+            {
+                var connectionString = Configuration.GetConnectionString(Constants.CosmosDbConnectionStrIndex);
+                var key = Configuration[Constants.CosmosDbKeyIndex];
+                return new CosmosDBProvider(connectionString, key);
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

@@ -95,6 +95,11 @@ namespace MAIAIBot.TeachersBot
                 return;
             }
 
+            var now = DateTime.Now;
+            var allStudents = DatabaseProvider.GetAllStudents().ToList();
+            allStudents.ForEach(student => student.AddVisit(now, false));
+            DatabaseProvider.UpdateStudents(allStudents).Wait();
+
             var studentsList = "";
             int index = 1;
             foreach (var attachment in attachments)
@@ -109,7 +114,7 @@ namespace MAIAIBot.TeachersBot
                 {
                     var student = await DatabaseProvider.GetStudent(result.CandidateIds[0]);
 
-                    student.AddVisit(DateTime.Now);
+                    student.UpdateLastVisit(true);
                     await DatabaseProvider.UpdateStudent(student);
 
                     studentsList += $"{index++,5}. {student.Name}" + "\n";
@@ -225,7 +230,7 @@ namespace MAIAIBot.TeachersBot
 
             if (command == Constants.AcceptStudentCommand)
             {
-                student.AddVisit(DateTime.Now);
+                student.UpdateLastVisit(true);
                 await DatabaseProvider.UpdateStudent(student);
             }
         }
