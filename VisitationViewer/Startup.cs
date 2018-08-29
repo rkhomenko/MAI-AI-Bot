@@ -69,9 +69,9 @@ namespace VisitationViewer
                 app.UseHsts();
             }
 
-            app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseCookiePolicy();
+            app.UseHttpsRedirection();
 
             app.UseMvc(routes =>
             {

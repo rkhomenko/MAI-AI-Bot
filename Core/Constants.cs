@@ -6,6 +6,7 @@ namespace MAIAIBot.Core
         public const string CognitiveServiceGroupName = "MAI students";
         public const string CognitiveServiceConnectionStrIndex = "CognitiveService";
         public const string CognitiveServiceKeyIndex = "CognitiveService:Key";
+        public const string DirectLineSecretIndex = "DirectLine:Key";
 
         public const string CosmosDbConnectionStrIndex = "CosmosDb";
         public const string CosmosDbKeyIndex = "CosmosDb:Key";

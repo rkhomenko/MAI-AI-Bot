@@ -16,8 +16,10 @@ using Microsoft.Bot.Connector;
 using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
 using Microsoft.Recognizers.Text;
+using Microsoft.Extensions.Configuration;
 
 using MAIAIBot.Core;
+using MAIAIBot.Core.DirectLine;
 
 namespace MAIAIBot.TeachersBot
 {
@@ -29,63 +31,39 @@ namespace MAIAIBot.TeachersBot
         private readonly IDatabaseProvider DatabaseProvider;
         private readonly IStorageProvider StorageProvider;
         private readonly ICognitiveServiceProvider CognitiveServiceProvider;
+        private readonly IConfiguration Configuration;
 
         public Bot(MicrosoftAppCredentials appCredentials,
+                   IConfiguration configuration,
                    IDatabaseProvider databaseProvider,
                    IStorageProvider storageProvider,
                    ICognitiveServiceProvider cognitiveServiceProvider)
         {
             AppCredentials = appCredentials;
+            Configuration = configuration;
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
             CognitiveServiceProvider = cognitiveServiceProvider;
         }
 
-        private async Task NotifyStudent(ITurnContext context, Student student)
+        private async Task NotifyStudent(ITurnContext context, string studentId, string teacherId)
         {
-            var dateTime = DateTime.Now.ToString("MM/dd/yy H:mm:ss");
 
-            var message = new Message
+            var client = new DirectLineClient(Configuration[Constants.DirectLineSecretIndex]);
+
+            var activity = new Activity
             {
-                Conversation = new Message.ConversationInfo
-                {
-                    Id = student.ChannelInfo.ConversationId
-                },
-                ServiceUrl = student.ChannelInfo.ServiceUrl,
-                ChannelId = student.ChannelInfo.ChannelId,
-                From = new Message.FromToInfo()
-                {
-                    Id = context.Activity.From.Id,
-                    Role = context.Activity.From.Role,
-                },
-                Recipient = new Message.FromToInfo()
-                {
-                    Id = student.ChannelInfo.ToId,
-                    Name = student.ChannelInfo.ToName,
-                    Role = "bot"
-                },
-                Text = $"{Constants.NotifyStudentCommand}: \"@{context.Activity.From.Name}\" \"{dateTime}\""
+                Type = Constants.ActivityTypes.MyProactive,
+                From = new ChannelAccount("MAI-AI-Teachers-Bot"),
+                Text = $"{Constants.NotifyStudentCommand} {teacherId} {studentId} \"{DateTime.Now}\""
             };
 
-
-            HttpClient client = new HttpClient
-            {
-                BaseAddress = new Uri("http://localhost:23116/api/messages")
-            };
-
-            var jsonString = message.ToString();
-            var stringContent = new StringContent(jsonString);
-            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            var responce = await client.PostAsync("http://localhost:23116/api/messages", stringContent);
-
-            client.Dispose();
-
-            //await context.SendActivity(responce.StatusCode);
-            //await context.SendActivity(jsonString);
+            await client.SendActivityAsync(activity);
         }
 
         private async Task CheckPhotos(ITurnContext context)
         {
+            var state = context.GetConversationState<BotState>();
             var students = new List<Student>();
             var attachments = context.Activity.Attachments;
 
@@ -119,12 +97,17 @@ namespace MAIAIBot.TeachersBot
 
                     studentsList += $"{index++,5}. {student.Name}" + "\n";
 
-                    await NotifyStudent(context, student);
+                    await NotifyStudent(context, student.Id, state.Id);
 
                     Thread.Sleep(Timeout);
                 }
 
                 //await StorageProvider.Remove(url);
+            }
+
+            if (studentsList.Length == 0)
+            {
+                studentsList = "Распознать никого не удалось.";
             }
 
             await context.SendActivity(studentsList);
@@ -137,23 +120,34 @@ namespace MAIAIBot.TeachersBot
                 new List<string>(),
                 new StudentChannelInfo
                 {
-                    ToId = context.Activity.Recipient.Id,
-                    ToName = context.Activity.Recipient.Name,
+                    ToId = context.Activity.From.Id,
+                    ToName = context.Activity.From.Name,
+                    FromId = context.Activity.Recipient.Id,
+                    FromName = context.Activity.Recipient.Name,
                     ServiceUrl = context.Activity.ServiceUrl,
                     ChannelId = context.Activity.ChannelId,
                     ConversationId = context.Activity.Conversation.Id
                 },
                 true);
 
+            var state = context.GetConversationState<BotState>();
+            state.RegistrationComplete = true;
+            state.Id = teacher.Id;
+
             await DatabaseProvider.AddStudent(teacher);
         }
 
         private async Task OnProactiveMessage(ITurnContext context)
         {
-            var replyActivity = context.Activity.CreateReply();
-            var attachments = new List<Attachment>();
+            var pattern = $"{Constants.NotifyTeacherCommand}\\s+(\\S+)\\s+(\\S+)";
+            var mathces = Regex.Match(context.Activity.Text, pattern);
+            if (!mathces.Success)
+            {
+                return;
+            }
 
-            var student = await DatabaseProvider.GetStudent(context.Activity.Text);
+            var teacher = await DatabaseProvider.GetStudent(mathces.Groups[1].ToString());
+            var student = await DatabaseProvider.GetStudent(mathces.Groups[2].ToString());
 
             var heroCard = new HeroCard()
             {
@@ -179,60 +173,61 @@ namespace MAIAIBot.TeachersBot
                 }
             };
 
-            attachments.Add(heroCard.ToAttachment());
-            replyActivity.Attachments = attachments;
+            var userAccount = new ChannelAccount(teacher.ChannelInfo.ToId, teacher.ChannelInfo.ToName);
+            var botAccount = new ChannelAccount(teacher.ChannelInfo.FromId, teacher.ChannelInfo.FromName);
+            var serviceUrl = teacher.ChannelInfo.ServiceUrl;
 
-            await context.SendActivity(replyActivity);
+            var connector = new ConnectorClient(new Uri(serviceUrl), AppCredentials);
+            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
+
+            var channelId = teacher.ChannelInfo.ChannelId;
+            var conversationId = teacher.ChannelInfo.ConversationId;
+
+            var message = Activity.CreateMessageActivity();
+            if (!string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(channelId))
+            {
+                message.ChannelId = channelId;
+            }
+            else
+            {
+                conversationId = (await connector.Conversations.CreateDirectConversationAsync(botAccount, userAccount)).Id;
+            }
+
+            message.From = botAccount;
+            message.Recipient = userAccount;
+            message.Conversation = new ConversationAccount(id: conversationId);
+            message.Locale = "en-us";
+            message.Attachments = new List<Attachment> { heroCard.ToAttachment() };
+
+            await connector.Conversations.SendToConversationAsync((Activity)message);
         }
 
-        private async Task SendResponseToStudent(ITurnContext context, string id, string command)
+        private async Task SendResponseToStudent(ITurnContext context, string studentId, string teacherId, string command)
         {
-            var student = await DatabaseProvider.GetStudent(id);
+            var client = new DirectLineClient(Configuration[Constants.DirectLineSecretIndex]);
 
-            var message = new Message
+            var activity = new Activity
             {
-                Conversation = new Message.ConversationInfo
-                {
-                    Id = student.ChannelInfo.ConversationId
-                },
-                ServiceUrl = student.ChannelInfo.ServiceUrl,
-                ChannelId = student.ChannelInfo.ChannelId,
-                From = new Message.FromToInfo()
-                {
-                    Id = context.Activity.From.Id,
-                    Role = context.Activity.From.Role,
-                },
-                Recipient = new Message.FromToInfo()
-                {
-                    Id = student.ChannelInfo.ToId,
-                    Name = student.ChannelInfo.ToName,
-                    Role = "bot"
-                },
-                Text = command
-            };
-                    
-
-            HttpClient client = new HttpClient
-            {
-                BaseAddress = new Uri("http://localhost:23116/api/messages")
+                Type = Constants.ActivityTypes.MyProactive,
+                From = new ChannelAccount("MAI-AI-Teachers-Bot"),
+                Text = $"{command} {studentId}"
             };
 
-            var jsonString = message.ToString();
-            var stringContent = new StringContent(jsonString);
-            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            var responce = await client.PostAsync("http://localhost:23116/api/messages", stringContent);
+            await client.SendActivityAsync(activity);
 
-            client.Dispose();
-
-            // --> Debug
-            //await context.SendActivity(responce.ToString());
-            //await context.SendActivity(jsonString);
-
-            if (command == Constants.AcceptStudentCommand)
+            string text = null;
+            var student = await DatabaseProvider.GetStudent(studentId);
+            switch (command)
             {
-                student.UpdateLastVisit(true);
-                await DatabaseProvider.UpdateStudent(student);
+                case Constants.AcceptStudentCommand:
+                    text = "подтвержден";
+                    break;
+                case Constants.DeclineStudentCommand:
+                    text = "отклонен";
+                    break;
             }
+
+            await context.SendActivity($"{student.Name} ({student.Group}) {text}.");
         }
 
         public async Task OnTurn(ITurnContext context)
@@ -246,10 +241,9 @@ namespace MAIAIBot.TeachersBot
                     await OnProactiveMessage(context);
                     break;
                 case ActivityTypes.Message:
-                    if (!state.RegistrationComplete)
+                    if (!state.RegistrationComplete && context.Activity.From.Id != null)
                     {
                         await Registration(context);
-                        state.RegistrationComplete = true;
                     }
 
                     if (context.Activity.Attachments != null)
@@ -262,9 +256,9 @@ namespace MAIAIBot.TeachersBot
                         if (matches.Success)
                         {
                             var command = matches.Groups[1].ToString();
-                            var id = matches.Groups[2].ToString();
+                            var studentId = matches.Groups[2].ToString();
 
-                            await SendResponseToStudent(context, id, command);
+                            await SendResponseToStudent(context, studentId, state.Id, command);
                         }
                         else
                         {

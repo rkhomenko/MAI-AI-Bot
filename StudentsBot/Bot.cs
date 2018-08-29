@@ -22,6 +22,8 @@ using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
 using Newtonsoft.Json;
 
 using MAIAIBot.Core;
+using MAIAIBot.Core.DirectLine;
+using Microsoft.Bot.Connector;
 
 namespace MAIAIBot.StudentsBot
 {
@@ -48,6 +50,7 @@ namespace MAIAIBot.StudentsBot
         private readonly IDatabaseProvider DatabaseProvider = null;
         private readonly IStorageProvider StorageProvider = null;
         private readonly ICognitiveServiceProvider CognitiveServiceProvider = null;
+        private readonly MicrosoftAppCredentials AppCredentials;
 
         private async Task NonEmptyStringValidator(ITurnContext context, TextResult result, string message)
         {
@@ -164,12 +167,16 @@ namespace MAIAIBot.StudentsBot
         public Bot(IConfiguration configuration,
                    IDatabaseProvider databaseProvider,
                    IStorageProvider storageProvider,
-                   ICognitiveServiceProvider cognitiveServiceProvider)
+                   ICognitiveServiceProvider cognitiveServiceProvider,
+                   MicrosoftAppCredentials appCredentials)
         {
+
             Configuration = configuration;
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
             CognitiveServiceProvider = cognitiveServiceProvider;
+            AppCredentials = appCredentials;
+
             dialogs = new DialogSet();
 
             dialogs.Add(PromptStep.NamePrompt,
@@ -189,51 +196,20 @@ namespace MAIAIBot.StudentsBot
                 });
         }
 
-        public async Task NotifyTeacher(ITurnContext context, string studentId, string teacherId)
+        private async Task NotifyTeacher(ITurnContext context, string studentId, string teacherId)
         {
             var teacher = await DatabaseProvider.GetStudent(teacherId);
 
-            var message = new Message
+            var client = new DirectLineClient(Configuration[Constants.DirectLineSecretIndex]);
+
+            var activity = new Activity
             {
-                Conversation = new Message.ConversationInfo
-                {
-                    Id = teacher.ChannelInfo.ConversationId
-                },
-                ServiceUrl = teacher.ChannelInfo.ServiceUrl,
-                ChannelId = teacher.ChannelInfo.ChannelId,
-                From = new Message.FromToInfo()
-                {
-                    Id = context.Activity.From.Id,
-                    Role = context.Activity.From.Role,
-                },
-                Recipient = new Message.FromToInfo()
-                {
-                    Id = teacher.ChannelInfo.ToId,
-                    Name = teacher.ChannelInfo.ToName,
-                    Role = "bot"
-                },
-                Text = studentId
+                Type = Constants.ActivityTypes.MyProactive,
+                From = new ChannelAccount("MAI-AI-Students-Bot"),
+                Text = $"{Constants.NotifyTeacherCommand} {teacherId} {studentId}"
             };
 
-            // --> For Production use only!
-            //var accessToken = await Authorization.GetAccessToken(Configuration["TeachersBotAppId"], Configuration["TeachersBotAppPassword"]);
-
-            HttpClient client = new HttpClient
-            {
-                BaseAddress = new Uri("http://localhost:47456/api/messages"),
-            };
-            // --> client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
-
-            var jsonString = message.ToString();
-            var stringContent = new StringContent(jsonString);
-            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-            var responce = await client.PostAsync("http://localhost:47456/api/messages", stringContent);
-
-            client.Dispose();
-
-            // --> Debug
-            //await context.SendActivity(responce.ToString());
-            //await context.SendActivity(jsonString);
+            await client.SendActivityAsync(activity);
         }
 
         public async Task OnTurn(ITurnContext context)
@@ -247,18 +223,21 @@ namespace MAIAIBot.StudentsBot
             {
                 case Constants.ActivityTypes.MyProactive:
                     {
-                        string responsePattern = $"({Constants.AcceptStudentCommand}|{Constants.DeclineStudentCommand})";
-                        string notificationPattern = $"{Constants.NotifyStudentCommand}:\\s+\"(\\S+)\"\\s+\"(.+)\"";
+                        string responsePattern = $"({Constants.AcceptStudentCommand}|{Constants.DeclineStudentCommand})\\s+(\\S+)";
+                        string notificationPattern = $"{Constants.NotifyStudentCommand}\\s+(\\S+)\\s+(\\S+)\\s+\"(.+)\"";
                         var matches = Regex.Match(context.Activity.Text, responsePattern);
+                        string text = null;
+                        string studentId = null;
                         if (matches.Success)
                         {
+                            studentId = matches.Groups[2].ToString();
                             switch (matches.Groups[1].ToString())
                             {
                                 case Constants.AcceptStudentCommand:
-                                    await context.SendActivity("Преподаватель подтвердил твоё присутствие.");
+                                    text = "Преподаватель подтвердил твоё присутствие.";
                                     break;
                                 case Constants.DeclineStudentCommand:
-                                    await context.SendActivity("Преподаватель не подтвердил твоё присутствие.");
+                                    text = "Преподаватель не подтвердил твоё присутствие.";
                                     break;
                             }
                         }
@@ -267,8 +246,42 @@ namespace MAIAIBot.StudentsBot
                             matches = Regex.Match(context.Activity.Text, notificationPattern);
                             if (matches.Success)
                             {
-                                await context.SendActivity($"{matches.Groups[1]} отметил тебя на лекции ({matches.Groups[2]})");
+                                studentId = matches.Groups[2].ToString();
+                                var teacher = await DatabaseProvider.GetStudent(matches.Groups[1].ToString());
+                                text = $"@{teacher.Name} отметил тебя на лекции ({matches.Groups[3]})";
                             }
+                        }
+
+                        if (studentId != null && text != null)
+                        {
+                            var student = await DatabaseProvider.GetStudent(studentId);
+                            var userAccount = new ChannelAccount(student.ChannelInfo.ToId, student.ChannelInfo.ToName);
+                            var botAccount = new ChannelAccount(student.ChannelInfo.FromId, student.ChannelInfo.FromName);
+                            var serviceUrl = student.ChannelInfo.ServiceUrl;
+
+                            var connector = new ConnectorClient(new Uri(serviceUrl), AppCredentials);
+                            MicrosoftAppCredentials.TrustServiceUrl(serviceUrl);
+
+                            var channelId = student.ChannelInfo.ChannelId;
+                            var conversationId = student.ChannelInfo.ConversationId;
+
+                            var message = Activity.CreateMessageActivity();
+                            if (!string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(channelId))
+                            {
+                                message.ChannelId = channelId;
+                            }
+                            else
+                            {
+                                conversationId = (await connector.Conversations.CreateDirectConversationAsync(botAccount, userAccount)).Id;
+                            }
+
+                            message.From = botAccount;
+                            message.Recipient = userAccount;
+                            message.Conversation = new ConversationAccount(id: conversationId);
+                            message.Text = text;
+                            message.Locale = "en-us";
+
+                            await connector.Conversations.SendToConversationAsync((Activity)message);
                         }
                     }
                     break;

@@ -35,6 +35,8 @@ namespace MAIAIBot.TeachersBot
 
             services.AddMvc();
 
+            services.AddSingleton<IConfiguration>(Configuration);
+
             services.AddTransient<IDatabaseProvider>(serviceProvider =>
             {
                 var connectionString = Configuration.GetConnectionString(Constants.CosmosDbConnectionStrIndex);

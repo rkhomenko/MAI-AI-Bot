@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 using MAIAIBot.Core;
+using Microsoft.Bot.Connector.Authentication;
 
 namespace MAIAIBot.StudentsBot
 {
@@ -77,6 +78,9 @@ namespace MAIAIBot.StudentsBot
             });
 
             services.AddSingleton(Configuration);
+
+            services.AddSingleton(new MicrosoftAppCredentials(Configuration[MicrosoftAppCredentials.MicrosoftAppIdKey],
+               Configuration[MicrosoftAppCredentials.MicrosoftAppPasswordKey]));
 
             services.AddBot<Bot>(options =>
             {
