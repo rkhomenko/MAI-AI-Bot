@@ -54,7 +54,14 @@ namespace MAIAIBot.Core
             var person = await ServiceClient.CreatePersonAsync(GroupId, personName);
             foreach (var imgUrl in imgUrls)
             {
-                await ServiceClient.AddPersonFaceAsync(GroupId, person.PersonId, imgUrl);
+                try
+                {
+                    await ServiceClient.AddPersonFaceAsync(GroupId, person.PersonId, imgUrl);
+                }
+                catch (Exception e)
+                {
+                    throw new Exception($"{e}\n{GroupId}\n{person}\n{imgUrl}");
+                }
             }
         }
 

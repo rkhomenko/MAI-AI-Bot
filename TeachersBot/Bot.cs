@@ -95,7 +95,7 @@ namespace MAIAIBot.TeachersBot
                     student.UpdateLastVisit(true);
                     await DatabaseProvider.UpdateStudent(student);
 
-                    studentsList += $"{index++,5}. {student.Name}" + "\n";
+                    studentsList += $"{index++,5}. {student.Name} ({student.Group})" + "\n";
 
                     await NotifyStudent(context, student.Id, state.Id);
 
