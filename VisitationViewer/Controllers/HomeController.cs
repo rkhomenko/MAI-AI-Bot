@@ -29,6 +29,10 @@ namespace VisitationViewer.Controllers
             ViewData["Students"] = students;
             ViewData["RowCount"] = students[0].Visits.Count;
 
+            var slides = students[0].Visits.Count / 10;
+            slides += students[0].Visits.Count % 10 == 0 ? 0 : 1;
+            ViewData["SlidesCount"] = slides;
+
             return View();
         }
 
