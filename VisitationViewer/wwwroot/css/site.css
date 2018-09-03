@@ -39,3 +39,15 @@ body {
 .carousel-control.left, .carousel-control.right {
     background-image: none
 }
+
+.carousel-indicators {
+    bottom: -50px;
+}
+
+.carousel-indicators li {
+    border: 1px solid #000000;
+}
+
+.carousel-indicators .active {
+    background-color: #000000;
+}
