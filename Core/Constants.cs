@@ -25,5 +25,7 @@ namespace MAIAIBot.Core
         public const string NotifyTeacherCommand = "Notify";
         public const string DeclineStudentCommand = "Decline";
         public const string NotifyStudentCommand = "Notification";
+
+        public const string TeacherRegistrationTokenKey = "TeacherRegistrationToken:Key";
     }
 }

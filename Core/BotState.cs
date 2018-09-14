@@ -1,6 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
-namespace MAIAIBot.StudentsBot
+namespace MAIAIBot.Core
 {
     public class BotState : Dictionary<string, object>
     {

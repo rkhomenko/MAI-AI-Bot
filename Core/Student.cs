@@ -31,13 +31,14 @@ namespace MAIAIBot.Core
 
     public class Student
     {
-        public Student(string name,
+        public Student(string id,
+                       string name,
                        string group,
                        List<string> imgUrls,
                        StudentChannelInfo channelInfo,
                        bool isTheacher = false)
         {
-            Id = Guid.NewGuid().ToString();
+            Id = id;
             Name = name;
             Group = group;
             ImgUrls = imgUrls;

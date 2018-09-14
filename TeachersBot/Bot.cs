@@ -11,22 +11,32 @@ using Microsoft.Bot;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Core.Extensions;
 using Microsoft.Bot.Builder.Dialogs;
+using Microsoft.Bot.Builder.Prompts;
 using Microsoft.Bot.Builder.Prompts.Choices;
 using Microsoft.Bot.Connector;
 using Microsoft.Bot.Connector.Authentication;
 using Microsoft.Bot.Schema;
 using Microsoft.Recognizers.Text;
 using Microsoft.Extensions.Configuration;
+using PromptsDialog = Microsoft.Bot.Builder.Dialogs;
 
 using MAIAIBot.Core;
 using MAIAIBot.Core.DirectLine;
 
 namespace MAIAIBot.TeachersBot
 {
-    public class Bot : IBot
+    public static class PromptStep
+    {
+        public const string TokenPrompt = "tokenPrompt";
+        public const string NamePrompt = "namePrompt";
+        public const string GatherInfo = "gatherInfo";
+    }
+
+        public class Bot : IBot
     {
         private const int Timeout = 1000;
 
+        private readonly DialogSet Dialogs;
         private readonly MicrosoftAppCredentials AppCredentials;
         private readonly IDatabaseProvider DatabaseProvider;
         private readonly IStorageProvider StorageProvider;
@@ -44,6 +54,70 @@ namespace MAIAIBot.TeachersBot
             DatabaseProvider = databaseProvider;
             StorageProvider = storageProvider;
             CognitiveServiceProvider = cognitiveServiceProvider;
+
+            Dialogs = new DialogSet();
+
+            Dialogs.Add(PromptStep.TokenPrompt,
+                new PromptsDialog.TextPrompt());
+            Dialogs.Add(PromptStep.NamePrompt,
+                new PromptsDialog.TextPrompt());            
+            Dialogs.Add(PromptStep.GatherInfo,
+                new WaterfallStep[]
+                {
+                    AskTokenStep, AskNameStep, GatherInfoStep
+                });
+        }
+
+        private async Task AskTokenStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
+            await dialogContext.Prompt(PromptStep.TokenPrompt, "Введите ключ регистрации:");
+        }
+
+        private async Task AskNameStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
+            var state = dialogContext.Context.GetConversationState<BotState>();
+
+            if ((result as TextResult).Value != Configuration[Constants.TeacherRegistrationTokenKey])
+            {
+                await dialogContext.Context.SendActivity("Неверный ключ регистрации!");
+                await dialogContext.End();
+            }
+            else
+            {
+                await dialogContext.Prompt(PromptStep.NamePrompt, "Введите ФИО:");
+            }
+        }
+
+        private async Task GatherInfoStep(DialogContext dialogContext, object result, SkipStepFunction next)
+        {
+            var state = dialogContext.Context.GetConversationState<BotState>();
+            var context = dialogContext.Context;
+
+            state.Name = (result as TextResult).Value;
+
+            var teacher = new Student(context.Activity.From.Id,
+                state.Name,
+                Constants.TeachersGroupName,
+                new List<string>(),
+                new StudentChannelInfo
+                {
+                    ToId = context.Activity.From.Id,
+                    ToName = context.Activity.From.Name,
+                    FromId = context.Activity.Recipient.Id,
+                    FromName = context.Activity.Recipient.Name,
+                    ServiceUrl = context.Activity.ServiceUrl,
+                    ChannelId = context.Activity.ChannelId,
+                    ConversationId = context.Activity.Conversation.Id
+                },
+                true);
+
+            state.RegistrationComplete = true;
+            state.Id = teacher.Id;
+
+            await DatabaseProvider.AddStudent(teacher);
+
+            await dialogContext.Context.SendActivity("Вы зарегистрированны.");
+            await dialogContext.End();
         }
 
         private async Task NotifyStudent(ITurnContext context, string studentId, string teacherId)
@@ -75,8 +149,13 @@ namespace MAIAIBot.TeachersBot
 
             var now = DateTime.Now;
             var allStudents = DatabaseProvider.GetAllStudents().ToList();
-            allStudents.ForEach(student => student.AddVisit(now, false));
-            DatabaseProvider.UpdateStudents(allStudents).Wait();
+            
+            if (allStudents[0].Visits.Count == 0 ||
+                now.Subtract(allStudents[0].Visits[allStudents[0].Visits.Count - 1].Date).Minutes > 10)
+            {
+                allStudents.ForEach(student => student.AddVisit(now, false));
+                DatabaseProvider.UpdateStudents(allStudents).Wait();
+            }
 
             var studentsList = "";
             int index = 1;
@@ -111,30 +190,6 @@ namespace MAIAIBot.TeachersBot
             }
 
             await context.SendActivity(studentsList);
-        }
-
-        private async Task Registration(ITurnContext context)
-        {
-            var teacher = new Student(context.Activity.From.Name,
-                Constants.TeachersGroupName,
-                new List<string>(),
-                new StudentChannelInfo
-                {
-                    ToId = context.Activity.From.Id,
-                    ToName = context.Activity.From.Name,
-                    FromId = context.Activity.Recipient.Id,
-                    FromName = context.Activity.Recipient.Name,
-                    ServiceUrl = context.Activity.ServiceUrl,
-                    ChannelId = context.Activity.ChannelId,
-                    ConversationId = context.Activity.Conversation.Id
-                },
-                true);
-
-            var state = context.GetConversationState<BotState>();
-            state.RegistrationComplete = true;
-            state.Id = teacher.Id;
-
-            await DatabaseProvider.AddStudent(teacher);
         }
 
         private async Task OnProactiveMessage(ITurnContext context)
@@ -221,6 +276,8 @@ namespace MAIAIBot.TeachersBot
             {
                 case Constants.AcceptStudentCommand:
                     text = "подтвержден";
+                    student.UpdateLastVisit(true);
+                    await DatabaseProvider.UpdateStudent(student);
                     break;
                 case Constants.DeclineStudentCommand:
                     text = "отклонен";
@@ -234,6 +291,25 @@ namespace MAIAIBot.TeachersBot
         {
             string pattern = $"({Constants.AcceptStudentCommand}|{Constants.DeclineStudentCommand})\\s+(\\S+)";
             var state = context.GetConversationState<BotState>();
+            var dialogCtx = Dialogs.CreateContext(context, state);
+
+            await DatabaseProvider.Init();
+
+            if (!state.RegistrationComplete)
+            {
+                try
+                {
+                    var teacher = await DatabaseProvider.GetStudent(context.Activity.From.Id);
+                    state.Id = teacher.Id;
+                    state.RegistrationComplete = true;
+
+                    await context.SendActivity("Вы уже были зарегистрированы.");
+                    return;
+                }
+                catch(Exception)
+                {
+                }
+            }
 
             switch (context.Activity.Type)
             {
@@ -243,10 +319,13 @@ namespace MAIAIBot.TeachersBot
                 case ActivityTypes.Message:
                     if (!state.RegistrationComplete && context.Activity.From.Id != null)
                     {
-                        await Registration(context);
+                        await dialogCtx.Continue();
+                        if (!context.Responded)
+                        {
+                            await dialogCtx.Begin(PromptStep.GatherInfo);
+                        }
                     }
-
-                    if (context.Activity.Attachments != null)
+                    else if (context.Activity.Attachments != null)
                     {
                         await CheckPhotos(context);
                     }

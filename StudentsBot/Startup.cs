@@ -51,22 +51,6 @@ namespace MAIAIBot.StudentsBot
                     connectionString);
             });
 
-            // fixme: Only for debug usecases. Delete it in production. ->
-            var cognitiveService = new AzureCognitiveServiceProvider(Constants.CognitiveServiceGroupId,
-                Constants.CognitiveServiceGroupName,
-                Configuration[Constants.CognitiveServiceKeyIndex],
-                Configuration.GetConnectionString(Constants.CognitiveServiceConnectionStrIndex));
-
-            try
-            {
-                cognitiveService.DeleteGroup().Wait();
-            }
-            catch (Exception)
-            {
-                // ignore
-            }
-            // <-
-
             services.AddTransient<ICognitiveServiceProvider>(serviceProvider => {
                 var endpoint = Configuration.GetConnectionString(Constants.CognitiveServiceConnectionStrIndex);
                 var key = Configuration[Constants.CognitiveServiceKeyIndex];

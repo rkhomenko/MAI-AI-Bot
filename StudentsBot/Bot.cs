@@ -43,10 +43,10 @@ namespace MAIAIBot.StudentsBot
     {
         private const int MinPhoto = 3;
         private const int MaxPhoto = 6;
-        private const string ImHere = "Я на лекции";
+        private const string ImHere = "я на лекции";
 
         private readonly IConfiguration Configuration;
-        private readonly DialogSet dialogs = null;
+        private readonly DialogSet Dialogs = null;
         private readonly IDatabaseProvider DatabaseProvider = null;
         private readonly IStorageProvider StorageProvider = null;
         private readonly ICognitiveServiceProvider CognitiveServiceProvider = null;
@@ -141,7 +141,8 @@ namespace MAIAIBot.StudentsBot
                 ConversationId = context.Activity.Conversation.Id
             };
 
-            var student = new Student(state.Name,
+            var student = new Student(context.Activity.From.Id,
+                                      state.Name,
                                       state.Group,
                                       state.ImgUrls,
                                       studentChannelInfo);
@@ -177,19 +178,19 @@ namespace MAIAIBot.StudentsBot
             CognitiveServiceProvider = cognitiveServiceProvider;
             AppCredentials = appCredentials;
 
-            dialogs = new DialogSet();
+            Dialogs = new DialogSet();
 
-            dialogs.Add(PromptStep.NamePrompt,
+            Dialogs.Add(PromptStep.NamePrompt,
                 new PromptsDialog.TextPrompt(NameValidator));
-            dialogs.Add(PromptStep.GroupPrompt,
+            Dialogs.Add(PromptStep.GroupPrompt,
                 new PromptsDialog.TextPrompt(GroupValidator));
-            dialogs.Add(PromptStep.PhotoPrompt,
+            Dialogs.Add(PromptStep.PhotoPrompt,
                 new PromptsDialog.AttachmentPrompt());
-            dialogs.Add(PromptStep.PhotoPrompts[0],
+            Dialogs.Add(PromptStep.PhotoPrompts[0],
                 new PromptsDialog.AttachmentPrompt());
-            dialogs.Add(PromptStep.PhotoPrompts[1],
+            Dialogs.Add(PromptStep.PhotoPrompts[1],
                 new PromptsDialog.AttachmentPrompt());
-            dialogs.Add(PromptStep.GatherInfo,
+            Dialogs.Add(PromptStep.GatherInfo,
                 new WaterfallStep[]
                 {
                     AskNameStep, AskGroupStep, AskPhotoStep, UploadPhotos, UploadPhotos, GatherInfoStep
@@ -215,9 +216,25 @@ namespace MAIAIBot.StudentsBot
         public async Task OnTurn(ITurnContext context)
         {
             var state = context.GetConversationState<BotState>();
-            var dialogCtx = dialogs.CreateContext(context, state);
+            var dialogCtx = Dialogs.CreateContext(context, state);
 
             await DatabaseProvider.Init();
+
+            if (!state.RegistrationComplete)
+            {
+                try
+                {
+                    var student = await DatabaseProvider.GetStudent(context.Activity.From.Id);
+                    state.Id = student.Id;
+                    state.RegistrationComplete = true;
+
+                    await context.SendActivity("Ты уже в списке)");
+                    return;
+                }
+                catch (Exception)
+                {
+                }
+            }
 
             switch (context.Activity.Type)
             {
@@ -248,7 +265,7 @@ namespace MAIAIBot.StudentsBot
                             {
                                 studentId = matches.Groups[2].ToString();
                                 var teacher = await DatabaseProvider.GetStudent(matches.Groups[1].ToString());
-                                text = $"@{teacher.Name} отметил тебя на лекции ({matches.Groups[3]})";
+                                text = $"{teacher.Name} отметил тебя на лекции ({matches.Groups[3]})";
                             }
                         }
 
@@ -298,7 +315,7 @@ namespace MAIAIBot.StudentsBot
                     break;
                 case ActivityTypes.Message:
                     {
-                        if (context.Activity.Text == ImHere
+                        if (context.Activity.Text.ToLower() == ImHere
                             &&
                             state.RegistrationComplete)
                         {
