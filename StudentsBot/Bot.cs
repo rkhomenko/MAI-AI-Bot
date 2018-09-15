@@ -146,6 +146,15 @@ namespace MAIAIBot.StudentsBot
                                       state.Group,
                                       state.ImgUrls,
                                       studentChannelInfo);
+            var students = DatabaseProvider.GetAllStudents().ToArray();
+            if (students.Length > 0 && students[0].Visits.Count > 0)
+            {
+                student.Visits = new List<VisitInfo>(students[0].Visits);
+                foreach (var visit in student.Visits)
+                {
+                    visit.Visited = false;
+                }
+            }
 
             await DatabaseProvider.AddStudent(student);
 
@@ -227,9 +236,6 @@ namespace MAIAIBot.StudentsBot
                     var student = await DatabaseProvider.GetStudent(context.Activity.From.Id);
                     state.Id = student.Id;
                     state.RegistrationComplete = true;
-
-                    await context.SendActivity("Ты уже в списке)");
-                    return;
                 }
                 catch (Exception)
                 {
@@ -315,7 +321,17 @@ namespace MAIAIBot.StudentsBot
                     break;
                 case ActivityTypes.Message:
                     {
-                        if (context.Activity.Text.ToLower() == ImHere
+                        bool compareInLowerCase(string s1, string s2)
+                        {
+                            if (s1 == null | s2 == null)
+                            {
+                                return false;
+                            }
+
+                            return s1.ToLower() == s2.ToLower();
+                        }
+
+                        if (compareInLowerCase(context.Activity.Text, ImHere)
                             &&
                             state.RegistrationComplete)
                         {
